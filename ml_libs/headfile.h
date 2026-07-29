@@ -36,4 +36,5 @@
 /* Ball balance competition modules */
 #include "camera.h"
 #include "ball_balance.h"
+#include "app_oled_timer.h"
 #endif
