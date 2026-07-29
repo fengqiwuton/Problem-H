@@ -1,13 +1,13 @@
 #include "headfile.h"
 #include "track_control.h"
 
-#define TRACK_BASE_SPEED     138
-#define TRACK_EDGE_SPEED     98
-#define TRACK_SEARCH_SPEED   115
+#define TRACK_BASE_SPEED     200
+#define TRACK_EDGE_SPEED     150
+#define TRACK_SEARCH_SPEED   170
 #define TRACK_MAX_TURN       340
 #define TRACK_MIN_EDGE_TURN  245
-#define TRACK_KP_DEFAULT     135
-#define TRACK_KD_DEFAULT     55
+#define TRACK_KP_DEFAULT     100
+#define TRACK_KD_DEFAULT     60
 #define TRACK_KP_MIN         0
 #define TRACK_KP_MAX         300
 #define TRACK_KD_MIN         0
@@ -23,7 +23,7 @@
 #define TRACK_CENTER_BITS    0x18
 #define TRACK_RECOVERY_ERROR 330
 #define TRACK_RECOVERY_CENTER_COUNT 2
-#define TRACK_SIDE_VOTE_LIMIT 4
+#define TRACK_SIDE_VOTE_LIMIT 5
 #define TRACK_SIDE_VOTE_LOCK  2
 #define TRACK_MIN_DRIVE_SPEED 25
 #define TRACK_EDGE_REVERSE_SPEED -30

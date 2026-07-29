@@ -1,116 +1,107 @@
-# 车载平衡滚球 - asyncio非阻塞: MJPEG推流 + 球检测 + UART
-import asyncio
-import csi
+# 反光背景下钢球检测 - 直方图均衡化 + 腐蚀膨胀 + find_blobs/find_circles
+import sensor
+import image
+import time
 import gc
-import network
-from microdot import Microdot, Response
 from pyb import UART
 
-# ── 初始化 ──
+sensor.reset()
+sensor.set_pixformat(sensor.GRAYSCALE)
+sensor.set_framesize(sensor.QVGA)
+sensor.skip_frames(time=2000)
+sensor.set_auto_gain(False)
+sensor.set_auto_whitebal(False)
+
 uart = UART(3, 115200, timeout_char=10)
-app = Microdot()
-BOUNDARY = b'frame'
 
-CENTER_X = 160
-SCALE_MM = 0.38
-BALL_THRESHOLD = (0, 80, -30, 30, -20, 40)
-latest_ball_mm = 0
-latest_ball_cx = 0
-has_ball = False
+# ── 校准参数 ──
+CENTER_X = 160       # 摆杆凹槽中心x坐标
+SCALE_MM = 0.38      # 像素→mm换算
 
-# ── 非阻塞摄像头 ──
-class AsyncCSI:
-    def __init__(self):
-        self._csi = csi.CSI()
-        self._csi.reset()
-        self._csi.pixformat(csi.RGB565)
-        self._csi.framesize(csi.QVGA)
-        self._csi.skip_frames(20)
+# ── ROI 限制在摆杆凹槽区域 ──
+ROI_X = 20
+ROI_Y = 80
+ROI_W = 280
+ROI_H = 80
 
-    def __getattr__(self, name):
-        return getattr(self._csi, name)
+last_uart_ms = 0
 
-    async def snapshot(self):
-        while True:
-            img = self._csi.snapshot(blocking=False)
-            if img is not None:
-                return img
-            await asyncio.sleep_ms(0)
+print("Ball Detect Ready")
 
-csi0 = AsyncCSI()
+while True:
+    gc.collect()
+    img = sensor.snapshot()
 
-# ── MJPEG流迭送器 ──
-class FrameStream:
-    def __aiter__(self):
-        return self
+    # ── Step1: 裁剪ROI ──
+    roi = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
 
-    async def __anext__(self):
-        img = await csi0.snapshot()
-        if has_ball:
-            img.draw_cross(latest_ball_cx, 120, color=(255, 0, 0), size=8)
-        img.draw_line((CENTER_X, 0, CENTER_X, 240), color=(0, 255, 0))
-        jpeg = bytes(img.compress(quality=50).bytearray())
-        return (b'--' + BOUNDARY + b'\r\n'
-                b'Content-Type: image/jpeg\r\n\r\n' + jpeg + b'\r\n')
+    # ── Step2: 直方图均衡化 ──
+    roi.histeq()
 
-# ── 球检测协程(独立运行, UART发给STM32) ──
-async def ball_detect():
-    global latest_ball_mm, latest_ball_cx, has_ball
-    last_uart_ms = 0
+    # ── Step3: 二值化（钢球比背景暗） ──
+    # 自适应阈值：先看均值，低于均值的视为钢球
+    threshold = roi.get_histogram().get_threshold()
+    threshold = (0, threshold)
 
-    while True:
-        gc.collect()
-        img = await csi0.snapshot()
-        blobs = img.find_blobs([BALL_THRESHOLD], pixels_threshold=80,
-                               area_threshold=80, merge=True, margin=5)
+    # ── Step4: 腐蚀去除亮点噪声 ──
+    roi.binary([threshold])
+    roi.erode(2)
 
-        if blobs:
-            best = blobs[0]
-            for b in blobs:
-                if b.area() > best.area():
-                    best = b
+    # ── Step5: 膨胀恢复球体形状 ──
+    roi.dilate(3)
 
-            latest_ball_cx = best.cx()
-            latest_ball_mm = int((best.cx() - CENTER_X) * SCALE_MM)
-            has_ball = True
+    # ── Step6: find_blobs找钢球 ──
+    blobs = roi.find_blobs([(0, 127)], pixels_threshold=20, area_threshold=20,
+                            merge=True, margin=5)
 
-            now = asyncio.ticks_ms()
-            if asyncio.ticks_diff(now, last_uart_ms) > 50:
-                uart.write("$B,%d#" % latest_ball_mm)
-                last_uart_ms = now
-        else:
-            has_ball = False
+    ball_found = False
+    ball_cx = 0
 
-        await asyncio.sleep_ms(5)
+    if blobs:
+        # 选面积最大、最圆的
+        best = blobs[0]
+        best_score = 0
+        for b in blobs:
+            # 偏心率小 = 更圆
+            roundness = 1.0 - abs(b.elongation() - 1.0)
+            score = b.area() * roundness
+            if score > best_score:
+                best_score = score
+                best = b
 
-# ── HTTP路由 ──
-@app.get('/')
-async def index(request):
-    return """<!DOCTYPE html>
-<html><body style="margin:0;background:#000">
-<img src="/stream.jpg" style="width:100%">
-</body></html>"""
+        # 在原图上画标记
+        cx = best.cx() + ROI_X
+        cy = best.cy() + ROI_Y
+        img.draw_cross(cx, cy, color=(255, 0, 0), size=8)
+        img.draw_circle(cx, cy, int(best.w() / 2), color=(255, 0, 0))
 
-@app.get('/stream.jpg')
-async def stream(request):
-    return Response(
-        body=FrameStream(),
-        headers={'Content-Type': b'multipart/x-mixed-replace; boundary=' + BOUNDARY},
-    )
+        ball_cx = cx
+        ball_found = True
 
-# ── WiFi ──
-wlan = network.WLAN(network.AP_IF)
-wlan.config(essid="BallCar", password="12345678", channel=1)
-wlan.active(True)
-while not wlan.active():
-    pass
-ip = wlan.ifconfig()[0]
+    # ── Step7: find_circles 辅助检测 ──
+    if not ball_found:
+        # 在原图上用霍夫圆检测
+        circles = img.find_circles(
+            threshold=3500,
+            x_margin=10, y_margin=10,
+            r_margin=5,
+            r_min=3, r_max=15,
+            roi=(ROI_X, ROI_Y, ROI_W, ROI_H)
+        )
+        if circles:
+            c = circles[0]
+            img.draw_circle(c.x(), c.y(), c.r(), color=(0, 255, 0))
+            ball_cx = c.x()
+            ball_found = True
 
-# ── 启动 ──
-async def main():
-    asyncio.create_task(ball_detect())
-    await app.start_server(host='0.0.0.0', port=80)
+    # ── 画中心参考线 ──
+    img.draw_line((CENTER_X, ROI_Y, CENTER_X, ROI_Y + ROI_H), color=(0, 255, 0))
 
-print("WiFi: BallCar / 12345678")
-print("Open http://" + ip + ":80")
-asyncio.run(main())
+    # ── UART发送 ──
+    now = time.ticks_ms()
+    if ball_found and time.ticks_diff(now, last_uart_ms) > 50:
+        ball_mm = int((ball_cx - CENTER_X) * SCALE_MM)
+        uart.write("$B,%d#" % ball_mm)
+        last_uart_ms = now
+
+    time.sleep_ms(10)
