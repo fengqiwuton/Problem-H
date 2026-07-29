@@ -1,0 +1,232 @@
+version: "4.1"
+name: Project
+type: ARM
+deviceName: null
+packDir: .pack/Keil/STM32F1xx_DFP.2.2.0
+srcDirs: []
+virtualFolder:
+  name: <virtual_root>
+  files: []
+  folders:
+    - name: user
+      files:
+        - path: ../main.c
+        - path: ../isr.c
+        - path: ../app_board.h
+        - path: ../app_motor.c
+        - path: ../app_motor.h
+        - path: ../app_module_test.c
+        - path: ../app_module_test.h
+        - path: ../oled_test.c
+        - path: ../uart_test.c
+        - path: ../adc_filter_test.c
+        - path: ../key_test.c
+        - path: ../servo_test.c
+        - path: ../spi_soft_test.c
+        - path: ../encoder_test.c
+        - path: ../motor_test.c
+      folders: []
+    - name: code
+      files:
+        - path: ../../code/motor.c
+        - path: ../../code/motor.h
+        - path: ../../code/pid.c
+        - path: ../../code/pid.h
+        - path: ../../code/gray_track.c
+        - path: ../../code/gray_track.h
+        - path: ../../code/filter.c
+        - path: ../../code/filter.h
+      folders: []
+    - name: sys
+      files:
+        - path: ../../sys/system_stm32f10x.h
+        - path: ../../sys/system_stm32f10x.c
+        - path: ../../sys/stm32f10x.h
+        - path: ../../sys/startup_stm32f10x_md.s
+        - path: ../../sys/core_cmInstr.h
+        - path: ../../sys/core_cmFunc.h
+        - path: ../../sys/core_cm3.h
+      folders: []
+    - name: ml_libs
+      files:
+        - path: ../../ml_libs/headfile.h
+        - path: ../../ML_LIBS/ml_gpio.c
+        - path: ../../ML_LIBS/ml_gpio.h
+        - path: ../../ML_LIBS/ml_delay.c
+        - path: ../../ML_LIBS/ml_delay.h
+        - path: ../../ML_LIBS/ml_nvic.c
+        - path: ../../ML_LIBS/ml_nvic.h
+        - path: ../../ML_LIBS/ml_pwm.c
+        - path: ../../ML_LIBS/ml_pwm.h
+        - path: ../../ML_LIBS/ml_tim.c
+        - path: ../../ML_LIBS/ml_tim.h
+        - path: ../../ML_LIBS/ml_uart.c
+        - path: ../../ML_LIBS/ml_uart.h
+        - path: ../../ML_LIBS/ml_oled_font.h
+        - path: ../../ML_LIBS/ml_adc.c
+        - path: ../../ML_LIBS/ml_adc.h
+        - path: ../../ML_LIBS/ml_exti.c
+        - path: ../../ML_LIBS/ml_exti.h
+        - path: ../../ml_libs/ml_mpu6050.c
+        - path: ../../ml_libs/ml_mpu6050.h
+        - path: ../../ml_libs/ml_i2c.c
+        - path: ../../ml_libs/ml_i2c.h
+        - path: ../../ml_libs/ml_oled.c
+        - path: ../../ml_libs/ml_oled.h
+        - path: ../../ml_libs/ml_hmc5883l.c
+        - path: ../../ml_libs/ml_hmc5883l.h
+        - path: ../../ml_libs/app_adc_filter.c
+        - path: ../../ml_libs/app_adc_filter.h
+        - path: ../../ml_libs/app_encoder.c
+        - path: ../../ml_libs/app_encoder.h
+        - path: ../../ml_libs/app_key.c
+        - path: ../../ml_libs/app_key.h
+        - path: ../../ml_libs/app_servo.c
+        - path: ../../ml_libs/app_servo.h
+        - path: ../../ml_libs/app_spi_soft.c
+        - path: ../../ml_libs/app_spi_soft.h
+        - path: ../../ml_libs/app_uart_frame.c
+        - path: ../../ml_libs/app_uart_frame.h
+      folders: []
+dependenceList: []
+outDir: build
+miscInfo:
+  uid: e52fa07b9cfd1de86c16a4ce4550ba9a
+targets:
+  Target 1:
+    cppPreprocessAttrs:
+      defineList:
+        - STM32F10X_MD
+      incList:
+        - .
+        - ..
+        - ../../ml_libs
+        - ../../code
+        - ../../sys
+        - .cmsis/include
+        - ../RTE/_Target 1
+      libList: []
+    excludeList: []
+    settings:
+      debugger: cortex-debug
+    toolchain: AC5
+    toolchainConfigMap:
+      AC5:
+        archExtensions: ""
+        cpuType: Cortex-M3
+        floatingPointHardware: none
+        options:
+          version: 4
+          afterBuildTasks: []
+          asm-compiler:
+            defines: []
+          beforeBuildTasks: []
+          c/cpp-compiler:
+            CXX_FLAGS: --diag_suppress=1 --diag_suppress=1295
+            C_FLAGS: --diag_suppress=1 --diag_suppress=1295
+            c99-mode: true
+            gnu-extensions: true
+            one-elf-section-per-function: true
+            optimization: level-0
+            warnings: all-warnings
+          global:
+            output-debug-info: enable
+            use-microLIB: false
+          linker:
+            $outputTaskExcludes:
+              - .bin
+            output-format: elf
+            ro-base: "0x08000000"
+            rw-base: "0x20000000"
+            xo-base: ""
+        scatterFilePath: ""
+        storageLayout:
+          RAM:
+            - id: 1
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 3
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: RAM
+            - id: 1
+              isChecked: true
+              mem:
+                size: "0x5000"
+                startAddr: "0x20000000"
+              noInit: false
+              tag: IRAM
+            - id: 2
+              isChecked: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              noInit: false
+              tag: IRAM
+          ROM:
+            - id: 1
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 3
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: ROM
+            - id: 1
+              isChecked: true
+              isStartup: true
+              mem:
+                size: "0x10000"
+                startAddr: "0x8000000"
+              tag: IROM
+            - id: 2
+              isChecked: false
+              isStartup: false
+              mem:
+                size: "0x0"
+                startAddr: "0x0"
+              tag: IROM
+        useCustomScatterFile: false
+    uploadConfigMap:
+      JLink:
+        baseAddr: ""
+        bin: ""
+        cpuInfo:
+          cpuName: "null"
+          vendor: "null"
+        otherCmds: ""
+        proType: 1
+        speed: 8000
+      OpenOCD:
+        baseAddr: "0x08000000"
+        bin: ""
+        interface: stlink
+        target: stm32f1x
+    uploader: OpenOCD
