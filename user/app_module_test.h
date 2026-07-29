@@ -17,6 +17,7 @@ void spi_soft_test_run(void);
 void encoder_test_run(void);
 void hcsr04_test_run(void);
 void motor_test_run(void);
+void oled_timer_test_run(void);
 
 /* Old names kept as wrappers so previous main.c experiments still build. */
 void app_test_oled_basic(void);

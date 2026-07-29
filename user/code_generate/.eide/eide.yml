@@ -25,6 +25,9 @@ virtualFolder:
         - path: ../spi_soft_test.c
         - path: ../encoder_test.c
         - path: ../motor_test.c
+        - path: ../app_oled_timer.c
+        - path: ../app_oled_timer.h
+        - path: ../oled_timer_main.c
       folders: []
     - name: code
       files:
@@ -36,6 +39,10 @@ virtualFolder:
         - path: ../../code/gray_track.h
         - path: ../../code/filter.c
         - path: ../../code/filter.h
+        - path: ../../code/camera.c
+        - path: ../../code/camera.h
+        - path: ../../code/ball_balance.c
+        - path: ../../code/ball_balance.h
       folders: []
     - name: sys
       files:

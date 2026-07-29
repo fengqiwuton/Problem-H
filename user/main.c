@@ -1,5 +1,6 @@
 #include "headfile.h"
 #include "app_board.h"
+#include "app_module_test.h"
 #include "track_control.h"
 #include "camera.h"
 #include "ball_balance.h"
@@ -54,8 +55,7 @@ static System_State_t sys_state = TASK_SELECT;
 static uint8_t current_task = 2;
 /* ── Timing ── */
 static uint32_t sys_time_ms = 0;
-static uint32_t task_start_time_ms = 0;
-static uint32_t task_elapsed_ms = 0;
+/* task elapsed time now comes from oled_timer_get_elapsed(&g_stopwatch) — TIM4 1ms hardware tick */
 
 /* ── Lap tracking ── */
 static uint8_t lap_count = 0;
@@ -79,29 +79,8 @@ static app_key_t task_key;
 /* ── IMU yaw from isr.c ── */
 extern float yaw_gyro;
 
-/* ── Helper functions ── */
-
-static int signed_to_int(float value)
-{
-    if (value >= 0.0f) return (int)(value + 0.5f);
-    return (int)(value - 0.5f);
-}
 
 /* ── Display helpers ── */
-
-static void show_signed_num(uint8_t row, uint8_t col, int value, uint8_t len)
-{
-    if (value < 0)
-    {
-        OLED_ShowString(row, col, "-");
-        OLED_ShowNum(row, col + 1, -value, len);
-    }
-    else
-    {
-        OLED_ShowString(row, col, " ");
-        OLED_ShowNum(row, col + 1, value, len);
-    }
-}
 
 static void show_time(uint8_t row, uint8_t col, uint32_t time_ms)
 {
@@ -184,62 +163,41 @@ static void oled_show_task_select(void)
     OLED_ShowString(1, 1, "Select Task:");
     OLED_ShowString(2, 1, "Task");
     OLED_ShowNum(2, 6, current_task, 1);
-    OLED_ShowString(2, 8, " UP:next");
-    OLED_ShowString(3, 1, "Start: DN btn");
-    OLED_ShowString(4, 1, "Kp");
-    OLED_ShowNum(4, 3, BALANCE_KP, 2);
-    OLED_ShowString(4, 6, "Kd");
-    OLED_ShowNum(4, 8, BALANCE_KD, 2);
+    OLED_ShowString(2, 8, "- PA6");
+    OLED_ShowString(3, 1, "PB1: Start");
 }
 
 /* ── OLED display during task run ── */
 
 static void oled_show_task_run(void)
 {
-    Track_Info_t tinfo = track_get_info();
+    /* Line 2: task number */
+    OLED_ShowString(1, 1, "Task");
+    OLED_ShowNum(1, 6, current_task, 1);
+    OLED_ShowString(1, 8, "Running");
 
-    /* Line 1: task, lap, time */
-    OLED_ShowString(1, 1, "T");
-    OLED_ShowNum(1, 2, current_task, 1);
-    OLED_ShowString(1, 4, "L");
-    OLED_ShowNum(1, 5, lap_count, 1);
-    OLED_ShowString(1, 7, "T:");
-    show_time(1, 9, task_elapsed_ms);
+    /* Line 3: time */
+    OLED_ShowString(2, 3, "Time:");
+    show_time(2, 9, oled_timer_get_elapsed(&g_stopwatch));
 
-    /* Line 2: ball position (mm) and error (mm) */
-    OLED_ShowString(2, 1, "B:");
-    show_signed_num(2, 3, ball_position_raw / 10, 3);
-    OLED_ShowString(2, 8, "Er:");
-    show_signed_num(2, 11, ball_balance_pos_error() / 10, 3);
-
-    /* Line 3: line tracking */
-    OLED_ShowString(3, 1, "LE:");
-    show_signed_num(3, 4, tinfo.error, 3);
-    OLED_ShowString(3, 9, "AC:");
-    OLED_ShowNum(3, 12, tinfo.active_count, 1);
-    OLED_ShowString(3, 14, "V");
-    OLED_ShowNum(3, 15, ball_position_valid, 1);
-
-    /* Line 4: yaw */
-    OLED_ShowString(4, 1, "Yaw:");
-    show_signed_num(4, 5, signed_to_int(yaw_gyro), 4);
+    /* clear unused lines */
+    OLED_ShowString(3, 1, "                ");
+    OLED_ShowString(4, 1, "                ");
 }
 
 /* ── OLED display for task result ── */
 
 static void oled_show_task_result(void)
 {
-    OLED_ShowString(1, 1, "Task Complete!");
-    OLED_ShowString(2, 1, "Time:");
-    show_time(2, 6, task_elapsed_ms);
+    OLED_ShowString(1, 1, "Task");
+    OLED_ShowNum(1, 6, current_task, 1);
+    OLED_ShowString(1, 8, "Done!");
 
-    if (current_task >= 3)
-    {
-        OLED_ShowString(3, 1, "Ball Err:");
-        show_signed_num(3, 10, ball_balance_pos_error() / 10, 3);
-    }
+    OLED_ShowString(2, 3, "Time:");
+    show_time(2, 9, oled_timer_get_elapsed(&g_stopwatch));
 
-    OLED_ShowString(4, 1, "Press DN: next");
+    OLED_ShowString(3, 1, "PB1: Next Task");
+    OLED_ShowString(4, 1, "                ");
 }
 
 /* ── System initialization ── */
@@ -253,6 +211,9 @@ static void system_init(void)
     OLED_ShowString(1, 1, "Ball Balance Car");
     OLED_ShowString(2, 1, "Initializing...");
     delay_ms(500);
+
+    /* Init hardware 1ms timer for stopwatch */
+    oled_timer_hw_init();
 
     /* Init tracking module (UART1) */
     OLED_ShowString(3, 1, "Track Init...");
@@ -311,18 +272,21 @@ static void task_2_start(void)
     target_laps = 1;
     stop_line_hold = 0;
     last_stop_line_time_ms = 0;
-    task_start_time_ms = sys_time_ms;
-    task_elapsed_ms = 0;
-    }
+
+    /* Start hardware stopwatch from 0 */
+    oled_timer_init(&g_stopwatch);
+    oled_timer_start(&g_stopwatch);
+}
 
 static void task_2_update(void)
 {
-    task_elapsed_ms = sys_time_ms - task_start_time_ms;
+    uint32_t elapsed = oled_timer_get_elapsed(&g_stopwatch);
 
-    if (task_elapsed_ms >= TASK_2_TIME_LIMIT)
+    if (elapsed >= TASK_2_TIME_LIMIT)
     {
         track_car_stop();
-                sys_state = TASK_2_DONE;
+        oled_timer_pause(&g_stopwatch);
+        sys_state = TASK_2_DONE;
         return;
     }
 
@@ -334,7 +298,8 @@ static void task_2_update(void)
         if (lap_count >= target_laps)
         {
             track_car_stop();
-                        sys_state = TASK_2_DONE;
+            oled_timer_pause(&g_stopwatch);
+            sys_state = TASK_2_DONE;
             return;
         }
     }
@@ -351,15 +316,17 @@ static void task_3_start(void)
     ball_balance_servo_center();
     t3_phase = T3_START;
     t3_phase_start_ms = sys_time_ms;
-    task_start_time_ms = sys_time_ms;
-    task_elapsed_ms = 0;
-    }
+
+    /* Start hardware stopwatch from 0 */
+    oled_timer_init(&g_stopwatch);
+    oled_timer_start(&g_stopwatch);
+}
 
 static void task_3_update(void)
 {
     uint32_t phase_elapsed;
+    uint32_t elapsed = oled_timer_get_elapsed(&g_stopwatch);
 
-    task_elapsed_ms = sys_time_ms - task_start_time_ms;
     phase_elapsed = sys_time_ms - t3_phase_start_ms;
 
     track_car_stop();
@@ -399,11 +366,12 @@ static void task_3_update(void)
             break;
 
         case T3_HOLD_MINUS:
-            if (phase_elapsed >= TASK_3_HOLD_TIME_MS || task_elapsed_ms >= TASK_3_TOTAL_MS)
+            if (phase_elapsed >= TASK_3_HOLD_TIME_MS || elapsed >= TASK_3_TOTAL_MS)
             {
                 ball_balance_pos_error();
                 ball_balance_set_target(0);
-                                sys_state = TASK_3_DONE;
+                oled_timer_pause(&g_stopwatch);
+                sys_state = TASK_3_DONE;
                 return;
             }
             break;
@@ -423,18 +391,20 @@ static void task_4_start(void)
     target_laps = 0;
     stop_line_hold = 0;
     last_stop_line_time_ms = 0;
-    task_start_time_ms = sys_time_ms;
-    task_elapsed_ms = 0;
-    }
+
+    oled_timer_init(&g_stopwatch);
+    oled_timer_start(&g_stopwatch);
+}
 
 static void task_4_update(void)
 {
-    task_elapsed_ms = sys_time_ms - task_start_time_ms;
+    uint32_t elapsed = oled_timer_get_elapsed(&g_stopwatch);
 
-    if (task_elapsed_ms >= TASK_4_TIME_LIMIT)
+    if (elapsed >= TASK_4_TIME_LIMIT)
     {
         track_car_stop();
-                sys_state = TASK_4_DONE;
+        oled_timer_pause(&g_stopwatch);
+        sys_state = TASK_4_DONE;
         return;
     }
 
@@ -446,7 +416,8 @@ static void task_4_update(void)
         if (lap_count >= 1)
         {
             track_car_stop();
-                        sys_state = TASK_4_DONE;
+            oled_timer_pause(&g_stopwatch);
+            sys_state = TASK_4_DONE;
             return;
         }
     }
@@ -465,18 +436,20 @@ static void task_5_start(void)
     target_laps = 1;
     stop_line_hold = 0;
     last_stop_line_time_ms = 0;
-    task_start_time_ms = sys_time_ms;
-    task_elapsed_ms = 0;
-    }
+
+    oled_timer_init(&g_stopwatch);
+    oled_timer_start(&g_stopwatch);
+}
 
 static void task_5_update(void)
 {
-    task_elapsed_ms = sys_time_ms - task_start_time_ms;
+    uint32_t elapsed = oled_timer_get_elapsed(&g_stopwatch);
 
-    if (task_elapsed_ms >= TASK_5_TIME_LIMIT)
+    if (elapsed >= TASK_5_TIME_LIMIT)
     {
         track_car_stop();
-                sys_state = TASK_5_DONE;
+        oled_timer_pause(&g_stopwatch);
+        sys_state = TASK_5_DONE;
         return;
     }
 
@@ -488,7 +461,8 @@ static void task_5_update(void)
         if (lap_count >= target_laps)
         {
             track_car_stop();
-                        sys_state = TASK_5_DONE;
+            oled_timer_pause(&g_stopwatch);
+            sys_state = TASK_5_DONE;
             return;
         }
     }
@@ -507,18 +481,20 @@ static void task_6_start(void)
     target_laps = 1;
     stop_line_hold = 0;
     last_stop_line_time_ms = 0;
-    task_start_time_ms = sys_time_ms;
-    task_elapsed_ms = 0;
-    }
+
+    oled_timer_init(&g_stopwatch);
+    oled_timer_start(&g_stopwatch);
+}
 
 static void task_6_update(void)
 {
-    task_elapsed_ms = sys_time_ms - task_start_time_ms;
+    uint32_t elapsed = oled_timer_get_elapsed(&g_stopwatch);
 
-    if (task_elapsed_ms >= TASK_6_TIME_LIMIT)
+    if (elapsed >= TASK_6_TIME_LIMIT)
     {
         track_car_stop();
-                sys_state = TASK_6_DONE;
+        oled_timer_pause(&g_stopwatch);
+        sys_state = TASK_6_DONE;
         return;
     }
 
@@ -530,7 +506,8 @@ static void task_6_update(void)
         if (lap_count >= target_laps)
         {
             track_car_stop();
-                        sys_state = TASK_6_DONE;
+            oled_timer_pause(&g_stopwatch);
+            sys_state = TASK_6_DONE;
             return;
         }
     }
