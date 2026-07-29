@@ -464,6 +464,11 @@
               <FileType>1</FileType>
               <FilePath>.\motor_test.c</FilePath>
             </File>
+            <File>
+              <FileName>track_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\track_control.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -490,16 +495,6 @@
               <FilePath>..\code\pid.h</FilePath>
             </File>
             <File>
-              <FileName>gray_track.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\gray_track.c</FilePath>
-            </File>
-            <File>
-              <FileName>gray_track.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\code\gray_track.h</FilePath>
-            </File>
-            <File>
               <FileName>filter.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\filter.c</FilePath>
@@ -518,6 +513,21 @@
               <FileName>camera.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\camera.c</FilePath>
+            </File>
+            <File>
+              <FileName>camera.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\camera.h</FilePath>
+            </File>
+            <File>
+              <FileName>gray_track.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\gray_track.c</FilePath>
+            </File>
+            <File>
+              <FileName>gray_track.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\gray_track.h</FilePath>
             </File>
           </Files>
         </Group>

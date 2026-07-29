@@ -31,5 +31,3 @@
 .\objects\pid.o: ..\code\pid.h
 .\objects\pid.o: ..\code\gray_track.h
 .\objects\pid.o: ..\code\filter.h
-.\objects\pid.o: ..\code\camera.h
-.\objects\pid.o: ..\code\ball_balance.h

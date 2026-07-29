@@ -31,5 +31,3 @@
 .\objects\ml_gpio.o: ..\code\pid.h
 .\objects\ml_gpio.o: ..\code\gray_track.h
 .\objects\ml_gpio.o: ..\code\filter.h
-.\objects\ml_gpio.o: ..\code\camera.h
-.\objects\ml_gpio.o: ..\code\ball_balance.h

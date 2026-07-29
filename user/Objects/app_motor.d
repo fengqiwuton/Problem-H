@@ -32,5 +32,3 @@
 .\objects\app_motor.o: ..\code\pid.h
 .\objects\app_motor.o: ..\code\gray_track.h
 .\objects\app_motor.o: ..\code\filter.h
-.\objects\app_motor.o: ..\code\camera.h
-.\objects\app_motor.o: ..\code\ball_balance.h

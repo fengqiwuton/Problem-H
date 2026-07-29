@@ -32,5 +32,3 @@
 .\objects\app_hcsr04.o: ..\code\pid.h
 .\objects\app_hcsr04.o: ..\code\gray_track.h
 .\objects\app_hcsr04.o: ..\code\filter.h
-.\objects\app_hcsr04.o: ..\code\camera.h
-.\objects\app_hcsr04.o: ..\code\ball_balance.h

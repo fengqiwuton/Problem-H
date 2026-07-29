@@ -31,5 +31,3 @@
 .\objects\ml_exti.o: ..\code\pid.h
 .\objects\ml_exti.o: ..\code\gray_track.h
 .\objects\ml_exti.o: ..\code\filter.h
-.\objects\ml_exti.o: ..\code\camera.h
-.\objects\ml_exti.o: ..\code\ball_balance.h

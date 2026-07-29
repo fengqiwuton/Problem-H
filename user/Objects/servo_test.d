@@ -32,6 +32,4 @@
 .\objects\servo_test.o: ..\code\pid.h
 .\objects\servo_test.o: ..\code\gray_track.h
 .\objects\servo_test.o: ..\code\filter.h
-.\objects\servo_test.o: ..\code\camera.h
-.\objects\servo_test.o: ..\code\ball_balance.h
 .\objects\servo_test.o: app_module_test.h

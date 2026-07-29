@@ -1,10 +1,7 @@
 #include "stm32f10x.h"
 #include "headfile.h"
-#include "camera.h"
 
 extern void track_uart_rx(uint8_t data);
-
-/* ── Timer ISRs ── */
 
 void TIM2_IRQHandler(void)
 {
@@ -18,9 +15,7 @@ void TIM3_IRQHandler(void)
 {
     if (TIM3->SR & 1)
     {
-        /* PID control for motors (from car_example) */
         pid_control();
-
         TIM3->SR &= ~1;
     }
 }
@@ -32,8 +27,6 @@ void TIM4_IRQHandler(void)
         TIM4->SR &= ~1;
     }
 }
-
-/* ── UART ISRs ── */
 
 void USART1_IRQHandler(void)
 {
@@ -62,7 +55,6 @@ void USART2_IRQHandler(void)
     }
 }
 
-/* UART3: Camera ball position data */
 void USART3_IRQHandler(void)
 {
     uint16_t sr = USART3->SR;
@@ -71,14 +63,9 @@ void USART3_IRQHandler(void)
     if (sr & (0x20 | 0x08 | 0x04 | 0x02))
     {
         data = (uint8_t)USART3->DR;
-        if (sr & 0x20)
-        {
-            camera_uart_rx(data);
-        }
+        (void)data;
     }
 }
-
-/* ── EXTI ISRs ── */
 
 void EXTI0_IRQHandler(void)
 {
@@ -142,7 +129,6 @@ void EXTI9_5_IRQHandler(void)
         EXTI->PR = 1 << 6;
     }
 
-    /* MPU6050 data ready on PA7 */
     if (EXTI->PR & (1 << 7))
     {
         MPU6050_GetData();

@@ -31,5 +31,3 @@
 .\objects\ml_nvic.o: ..\code\pid.h
 .\objects\ml_nvic.o: ..\code\gray_track.h
 .\objects\ml_nvic.o: ..\code\filter.h
-.\objects\ml_nvic.o: ..\code\camera.h
-.\objects\ml_nvic.o: ..\code\ball_balance.h

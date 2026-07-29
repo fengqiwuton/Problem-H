@@ -2,16 +2,10 @@
 #define _i2c_h
 #include "headfile.h"
 
-/* 
-   ����ģ��I2CЭ��
-	 �޸������������� 
-	 �Զ���SCL��SDA����
-	 �轫��Ӧ�������óɿ�©���	 
-*/
-/* PB10/PB11 reserved for Camera UART3. Moved I2C to PB6(SCL)/PB7(SDA). */
-#define I2C_GPIO 	         GPIO_B
-#define I2C_SCL_GPIO_Pin   Pin_6
-#define I2C_SDA_GPIO_Pin   Pin_7 	
+/* I2C for tracking module: PB10(SCL) PB11(SDA) */
+#define I2C_GPIO             GPIO_B
+#define I2C_SCL_GPIO_Pin     Pin_10
+#define I2C_SDA_GPIO_Pin     Pin_11
 
 void I2C_Init(void);
 void I2C_Start(void);

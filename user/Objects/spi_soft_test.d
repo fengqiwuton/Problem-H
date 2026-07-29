@@ -32,6 +32,4 @@
 .\objects\spi_soft_test.o: ..\code\pid.h
 .\objects\spi_soft_test.o: ..\code\gray_track.h
 .\objects\spi_soft_test.o: ..\code\filter.h
-.\objects\spi_soft_test.o: ..\code\camera.h
-.\objects\spi_soft_test.o: ..\code\ball_balance.h
 .\objects\spi_soft_test.o: app_module_test.h

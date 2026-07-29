@@ -32,5 +32,3 @@
 .\objects\app_servo.o: ..\code\pid.h
 .\objects\app_servo.o: ..\code\gray_track.h
 .\objects\app_servo.o: ..\code\filter.h
-.\objects\app_servo.o: ..\code\camera.h
-.\objects\app_servo.o: ..\code\ball_balance.h

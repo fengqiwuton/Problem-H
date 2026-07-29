@@ -32,5 +32,3 @@
 .\objects\app_adc_filter.o: ..\code\pid.h
 .\objects\app_adc_filter.o: ..\code\gray_track.h
 .\objects\app_adc_filter.o: ..\code\filter.h
-.\objects\app_adc_filter.o: ..\code\camera.h
-.\objects\app_adc_filter.o: ..\code\ball_balance.h

@@ -10,9 +10,9 @@
 
 /* UART devices */
 #define BOARD_UART_DEBUG          UART_1
-#define BOARD_UART_TRACK          UART_1
-#define BOARD_UART_MOTOR          UART_2
-#define BOARD_UART_CAMERA         UART_3
+#define BOARD_UART_TRACK          UART_1   /* PA9(TX) PA10(RX) — 循迹模块 */
+#define BOARD_UART_MOTOR          UART_2   /* PA2(TX) PA3(RX) — 电机驱动 */
+#define BOARD_UART_CAMERA         UART_3   /* PB10(TX) PB11(RX) — 摄像头待用 */
 
 #define BOARD_UART_DEBUG_BAUD     115200
 #define BOARD_UART_TRACK_BAUD     115200

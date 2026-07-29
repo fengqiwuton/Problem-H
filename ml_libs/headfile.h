@@ -1,7 +1,7 @@
 #ifndef _headfile_h_
 #define _headfile_h_
 
-#include "stm32f10x.h"                  // Device header
+#include "stm32f10x.h"
 #include "stdint.h"
 #include "stdio.h"
 #include "string.h"
@@ -32,8 +32,4 @@
 #include "pid.h"
 #include "gray_track.h"
 #include "filter.h"
-
-/* Ball balance competition modules */
-#include "camera.h"
-#include "ball_balance.h"
 #endif

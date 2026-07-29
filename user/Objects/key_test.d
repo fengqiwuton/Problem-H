@@ -32,6 +32,4 @@
 .\objects\key_test.o: ..\code\pid.h
 .\objects\key_test.o: ..\code\gray_track.h
 .\objects\key_test.o: ..\code\filter.h
-.\objects\key_test.o: ..\code\camera.h
-.\objects\key_test.o: ..\code\ball_balance.h
 .\objects\key_test.o: app_module_test.h

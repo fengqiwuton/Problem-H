@@ -32,5 +32,3 @@
 .\objects\ball_balance.o: ..\code\pid.h
 .\objects\ball_balance.o: ..\code\gray_track.h
 .\objects\ball_balance.o: ..\code\filter.h
-.\objects\ball_balance.o: ..\code\camera.h
-.\objects\ball_balance.o: ..\code\ball_balance.h

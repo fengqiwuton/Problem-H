@@ -32,6 +32,4 @@
 .\objects\encoder_test.o: ..\code\pid.h
 .\objects\encoder_test.o: ..\code\gray_track.h
 .\objects\encoder_test.o: ..\code\filter.h
-.\objects\encoder_test.o: ..\code\camera.h
-.\objects\encoder_test.o: ..\code\ball_balance.h
 .\objects\encoder_test.o: app_module_test.h
