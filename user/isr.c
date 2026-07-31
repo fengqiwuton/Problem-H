@@ -63,7 +63,10 @@ void USART3_IRQHandler(void)
     if (sr & (0x20 | 0x08 | 0x04 | 0x02))
     {
         data = (uint8_t)USART3->DR;
-        (void)data;
+        if (sr & 0x20)
+        {
+            track_uart_rx(data);
+        }
     }
 }
 

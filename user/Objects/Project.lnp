@@ -19,6 +19,7 @@
 ".\objects\ball_balance.o"
 ".\objects\camera.o"
 ".\objects\gray_track.o"
+".\objects\scs_servo.o"
 ".\objects\system_stm32f10x.o"
 ".\objects\startup_stm32f10x_md.o"
 ".\objects\ml_gpio.o"

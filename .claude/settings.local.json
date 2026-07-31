@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ':*)",
+      "Bash(python3)",
+      "Read(//e/STM32Project/stm32-master/stm32-master/**)",
+      "Read(//e/STM32Project/**)"
+    ]
+  }
+}

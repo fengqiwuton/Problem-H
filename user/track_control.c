@@ -4,10 +4,10 @@
 #define TRACK_BASE_SPEED     200
 #define TRACK_EDGE_SPEED     150
 #define TRACK_SEARCH_SPEED   170
-#define TRACK_MAX_TURN       340
-#define TRACK_MIN_EDGE_TURN  245
-#define TRACK_KP_DEFAULT     100
-#define TRACK_KD_DEFAULT     60
+#define TRACK_MAX_TURN       50
+#define TRACK_MIN_EDGE_TURN  30
+#define TRACK_KP_DEFAULT     40
+#define TRACK_KD_DEFAULT     20
 #define TRACK_KP_MIN         0
 #define TRACK_KP_MAX         300
 #define TRACK_KD_MIN         0
@@ -15,32 +15,32 @@
 #define TRACK_LOST_STOP_CNT  120
 #define TRACK_FRAME_TIMEOUT  100
 #define DRIVE_RAMP_STEP      110
-#define EDGE_CONFIRM_COUNT   2
+#define EDGE_CONFIRM_COUNT   99  /* disabled */
 #define TRACK_WIDE_COUNT     3
 #define TRACK_WIDE_RECOVERY_COUNT 5
 #define TRACK_WIDE_DEADBAND  80
-#define TRACK_WIDE_MIN_TURN  200
+#define TRACK_WIDE_MIN_TURN  40
 #define TRACK_CENTER_BITS    0x18
-#define TRACK_RECOVERY_ERROR 330
+#define TRACK_RECOVERY_ERROR 100
 #define TRACK_RECOVERY_CENTER_COUNT 2
-#define TRACK_SIDE_VOTE_LIMIT 5
+#define TRACK_SIDE_VOTE_LIMIT 4
 #define TRACK_SIDE_VOTE_LOCK  2
-#define TRACK_MIN_DRIVE_SPEED 25
-#define TRACK_EDGE_REVERSE_SPEED -30
-#define TRACK_RECOVERY_FORWARD 55
-#define TRACK_RECOVERY_TURN   240
-#define TRACK_SEARCH_INNER_SPEED -60
+#define TRACK_MIN_DRIVE_SPEED 60
+#define TRACK_EDGE_REVERSE_SPEED 30  /* 倒车不反转 */
+#define TRACK_RECOVERY_FORWARD 100
+#define TRACK_RECOVERY_TURN   50
+#define TRACK_SEARCH_INNER_SPEED 50
 #define TRACK_SWEEP_PERIOD    25
 #define TRACK_ALIGN_MAX_ACTIVE 4
-#define TRACK_WEAVE_TURN      22
+#define TRACK_WEAVE_TURN      0  /* disabled */
 #define TRACK_WEAVE_PERIOD    16
 #define TRACK_WEAVE_ERROR_LIMIT 120
-#define TRACK_WEAVE_ACTIVE_MAX 2
+#define TRACK_WEAVE_ACTIVE_MAX 0  /* disabled */
 #define TRACK_LOCK_FRAMES     25
-#define TRACK_LOCK_BASE_SPEED 88
-#define TRACK_LOCK_KP         160
-#define TRACK_LOCK_KD         70
-#define TRACK_TURN_SIGN       1
+#define TRACK_LOCK_BASE_SPEED 120
+#define TRACK_LOCK_KP         40
+#define TRACK_LOCK_KD         20
+#define TRACK_TURN_SIGN       -1
 #define TRACK_WIDE_PAUSE_FRAMES 4
 
 static uint8_t track_no_frame_count = 0;
@@ -350,7 +350,7 @@ void track_car_drive(int left_speed, int right_speed)
 		drive_right_now = right_speed;
 	}
 
-	control_speed(drive_left_now, drive_left_now, drive_right_now, drive_right_now);
+	control_speed(0, -drive_left_now, 0, -drive_right_now);  /* 倒车: M2左 M4右 */
 }
 
 /* Ask the 8-channel tracking module to upload digital and analog data. */
@@ -528,7 +528,7 @@ static int calc_track_error(uint8_t bits)
 	 * Negative error means the line is on the left, positive means it is on the right.
 	 * TRACK_TURN_SIGN maps that line position to the car's correction direction.
 	 */
-	static const int sensor_weight[8] = {-350, -250, -150, -50, 50, 150, 250, 350};
+	static const int sensor_weight[8] = {-100, -60, -30, -10, 10, 30, 60, 100};
 	int sum = 0;
 	uint8_t i;
 	uint8_t left_count;

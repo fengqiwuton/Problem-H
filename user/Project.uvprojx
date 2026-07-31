@@ -529,6 +529,16 @@
               <FileType>5</FileType>
               <FilePath>..\code\gray_track.h</FilePath>
             </File>
+            <File>
+              <FileName>scs_servo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\scs_servo.c</FilePath>
+            </File>
+            <File>
+              <FileName>scs_servo.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\scs_servo.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

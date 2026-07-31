@@ -31,3 +31,4 @@
 .\objects\ml_uart.o: ..\code\pid.h
 .\objects\ml_uart.o: ..\code\gray_track.h
 .\objects\ml_uart.o: ..\code\filter.h
+.\objects\ml_uart.o: ..\code\scs_servo.h

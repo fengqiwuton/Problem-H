@@ -33,3 +33,4 @@
 .\objects\app_uart_frame.o: ..\code\pid.h
 .\objects\app_uart_frame.o: ..\code\gray_track.h
 .\objects\app_uart_frame.o: ..\code\filter.h
+.\objects\app_uart_frame.o: ..\code\scs_servo.h

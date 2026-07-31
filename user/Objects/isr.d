@@ -31,3 +31,4 @@
 .\objects\isr.o: ..\code\pid.h
 .\objects\isr.o: ..\code\gray_track.h
 .\objects\isr.o: ..\code\filter.h
+.\objects\isr.o: ..\code\scs_servo.h

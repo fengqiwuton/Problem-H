@@ -32,3 +32,4 @@
 .\objects\ml_oled.o: ..\code\pid.h
 .\objects\ml_oled.o: ..\code\gray_track.h
 .\objects\ml_oled.o: ..\code\filter.h
+.\objects\ml_oled.o: ..\code\scs_servo.h

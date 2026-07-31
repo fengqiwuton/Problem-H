@@ -32,3 +32,4 @@
 .\objects\app_spi_soft.o: ..\code\pid.h
 .\objects\app_spi_soft.o: ..\code\gray_track.h
 .\objects\app_spi_soft.o: ..\code\filter.h
+.\objects\app_spi_soft.o: ..\code\scs_servo.h

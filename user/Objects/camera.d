@@ -32,4 +32,5 @@
 .\objects\camera.o: ..\code\pid.h
 .\objects\camera.o: ..\code\gray_track.h
 .\objects\camera.o: ..\code\filter.h
+.\objects\camera.o: ..\code\scs_servo.h
 .\objects\camera.o: ..\code\ball_balance.h

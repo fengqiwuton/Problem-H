@@ -31,5 +31,5 @@
 .\objects\main.o: ..\code\pid.h
 .\objects\main.o: ..\code\gray_track.h
 .\objects\main.o: ..\code\filter.h
+.\objects\main.o: ..\code\scs_servo.h
 .\objects\main.o: app_board.h
-.\objects\main.o: track_control.h

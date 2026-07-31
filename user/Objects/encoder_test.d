@@ -32,4 +32,5 @@
 .\objects\encoder_test.o: ..\code\pid.h
 .\objects\encoder_test.o: ..\code\gray_track.h
 .\objects\encoder_test.o: ..\code\filter.h
+.\objects\encoder_test.o: ..\code\scs_servo.h
 .\objects\encoder_test.o: app_module_test.h

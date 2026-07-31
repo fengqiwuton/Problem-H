@@ -31,3 +31,4 @@
 .\objects\ml_tim.o: ..\code\pid.h
 .\objects\ml_tim.o: ..\code\gray_track.h
 .\objects\ml_tim.o: ..\code\filter.h
+.\objects\ml_tim.o: ..\code\scs_servo.h

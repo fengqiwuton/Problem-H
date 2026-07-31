@@ -33,3 +33,4 @@
 .\objects\ml_mpu6050.o: ..\code\pid.h
 .\objects\ml_mpu6050.o: ..\code\gray_track.h
 .\objects\ml_mpu6050.o: ..\code\filter.h
+.\objects\ml_mpu6050.o: ..\code\scs_servo.h

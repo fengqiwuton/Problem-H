@@ -32,3 +32,4 @@
 .\objects\ball_balance.o: ..\code\pid.h
 .\objects\ball_balance.o: ..\code\gray_track.h
 .\objects\ball_balance.o: ..\code\filter.h
+.\objects\ball_balance.o: ..\code\scs_servo.h

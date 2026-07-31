@@ -32,4 +32,5 @@
 .\objects\uart_test.o: ..\code\pid.h
 .\objects\uart_test.o: ..\code\gray_track.h
 .\objects\uart_test.o: ..\code\filter.h
+.\objects\uart_test.o: ..\code\scs_servo.h
 .\objects\uart_test.o: app_module_test.h

@@ -32,3 +32,4 @@
 .\objects\app_module_test.o: ..\code\pid.h
 .\objects\app_module_test.o: ..\code\gray_track.h
 .\objects\app_module_test.o: ..\code\filter.h
+.\objects\app_module_test.o: ..\code\scs_servo.h

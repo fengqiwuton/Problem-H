@@ -31,3 +31,4 @@
 .\objects\ml_pwm.o: ..\code\pid.h
 .\objects\ml_pwm.o: ..\code\gray_track.h
 .\objects\ml_pwm.o: ..\code\filter.h
+.\objects\ml_pwm.o: ..\code\scs_servo.h

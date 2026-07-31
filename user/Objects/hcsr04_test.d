@@ -32,4 +32,5 @@
 .\objects\hcsr04_test.o: ..\code\pid.h
 .\objects\hcsr04_test.o: ..\code\gray_track.h
 .\objects\hcsr04_test.o: ..\code\filter.h
+.\objects\hcsr04_test.o: ..\code\scs_servo.h
 .\objects\hcsr04_test.o: app_module_test.h

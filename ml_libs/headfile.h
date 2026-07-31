@@ -32,4 +32,5 @@
 #include "pid.h"
 #include "gray_track.h"
 #include "filter.h"
+#include "scs_servo.h"
 #endif

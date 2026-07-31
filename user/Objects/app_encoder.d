@@ -32,3 +32,4 @@
 .\objects\app_encoder.o: ..\code\pid.h
 .\objects\app_encoder.o: ..\code\gray_track.h
 .\objects\app_encoder.o: ..\code\filter.h
+.\objects\app_encoder.o: ..\code\scs_servo.h
