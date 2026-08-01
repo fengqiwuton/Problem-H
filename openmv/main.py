@@ -9,6 +9,18 @@ from pyb import UART
 # ---------------- Tunable constants ----------------
 
 IMG_W = 160
+WIFI_STREAM_ENABLED = False
+
+if WIFI_STREAM_ENABLED:
+    try:
+        import socket
+        import network
+    except Exception:
+        socket = None
+        network = None
+else:
+    socket = None
+    network = None
 IMG_H = 120
 CENTER_X = 80
 
@@ -395,6 +407,81 @@ def draw_debug(img, pipe_roi, search_roi, ball, fps):
     img.draw_string(2, 2, "FPS:%d" % int(fps), color=255)
 
 
+# ---------------- WiFi ----------------
+
+_wifi_client = None
+_wifi_sock = None
+
+def wifi_init():
+    global _wifi_sock
+
+    if not WIFI_STREAM_ENABLED or socket is None or network is None:
+        return False
+
+    try:
+        wlan = network.WLAN(network.AP_IF)
+        wlan.config(ssid="BallCar", password="12345678", channel=1)
+        wlan.active(True)
+        for i in range(30):
+            if wlan.active():
+                break
+            time.sleep_ms(200)
+        ip = wlan.ifconfig()[0]
+        _wifi_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _wifi_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        _wifi_sock.bind(('0.0.0.0', 8080))
+        _wifi_sock.listen(1)
+        _wifi_sock.setblocking(False)
+        print("WiFi: http://%s:8080" % ip)
+        return True
+    except Exception:
+        if _wifi_sock:
+            try:
+                _wifi_sock.close()
+            except Exception:
+                pass
+        _wifi_sock = None
+        return False
+
+def wifi_stream(img):
+    global _wifi_client, _wifi_sock
+
+    if not WIFI_STREAM_ENABLED or _wifi_sock is None:
+        return
+
+    try:
+        client, addr = _wifi_sock.accept()
+    except OSError:
+        pass
+    else:
+        try:
+            client.setblocking(False)
+            client.send(
+                b'HTTP/1.1 200 OK\r\n'
+                b'Content-Type: multipart/x-mixed-replace; boundary=frame\r\n'
+                b'\r\n'
+            )
+            _wifi_client = client
+        except OSError:
+            try:
+                client.close()
+            except OSError:
+                pass
+    if _wifi_client:
+        try:
+            jpeg = img.compress(quality=30)
+            _wifi_client.send(
+                b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n\r\n'
+                + jpeg + b'\r\n'
+            )
+        except OSError:
+            try:
+                _wifi_client.close()
+            except OSError:
+                pass
+            _wifi_client = None
+
 # ---------------- Runtime ----------------
 
 sensor.reset()
@@ -413,6 +500,10 @@ lost_frames = PIPE_LOST_RELOCK
 frame_n = 0
 last_uart_ms = 0
 last_status_ms = 0
+wifi_ready = False
+
+if WIFI_STREAM_ENABLED:
+    wifi_ready = wifi_init()
 
 while True:
     clock.tick()
@@ -455,6 +546,9 @@ while True:
         if time.ticks_diff(now, last_uart_ms) >= UART_LOST_PERIOD_MS:
             uart.write(packet_lost())
             last_uart_ms = now
+
+    if WIFI_STREAM_ENABLED and wifi_ready:
+        wifi_stream(img)
 
     if DEBUG_DRAW:
         draw_debug(img, pipe_roi, search_roi, ball, clock.fps())

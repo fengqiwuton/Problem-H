@@ -33,4 +33,5 @@
 .\objects\main.o: ..\code\filter.h
 .\objects\main.o: ..\code\scs_servo.h
 .\objects\main.o: app_board.h
-.\objects\main.o: track_control.h
+.\objects\main.o: ..\code\task3_control.h
+.\objects\main.o: ..\code\task3_controller.h

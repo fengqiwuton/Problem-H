@@ -46,6 +46,74 @@ def test_openmv_runtime_has_tunable_debug_draw_switch():
     assert "DEBUG_DRAW" in text
 
 
+def test_wifi_streaming_is_disabled_by_default_and_runtime_gated():
+    text = read_main()
+
+    assert "WIFI_STREAM_ENABLED = False" in text
+    assert "if WIFI_STREAM_ENABLED:\n    wifi_ready = wifi_init()" in text
+    assert "if WIFI_STREAM_ENABLED and wifi_ready:\n        wifi_stream(img)" in text
+
+
+def test_wifi_init_and_stream_are_guarded_and_nonblocking():
+    tree = ast.parse(read_main(), filename=str(MAIN))
+    functions = {
+        node.name: ast.get_source_segment(read_main(), node)
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+
+    assert "if not WIFI_STREAM_ENABLED" in functions["wifi_init"]
+    assert "return False" in functions["wifi_init"]
+    assert ".setblocking(False)" in functions["wifi_stream"]
+
+
+def test_wifi_init_returns_false_when_socket_cleanup_fails():
+    helpers = load_main_helpers()
+
+    class FakeWlan:
+        def config(self, **kwargs):
+            pass
+
+        def active(self, enabled=None):
+            return True
+
+        def ifconfig(self):
+            return ("192.168.4.1",)
+
+    class FakeNetwork:
+        AP_IF = 0
+
+        @staticmethod
+        def WLAN(interface):
+            return FakeWlan()
+
+    class FailingSocket:
+        def setsockopt(self, *args):
+            pass
+
+        def bind(self, address):
+            raise RuntimeError("bind failed")
+
+        def close(self):
+            raise OSError("close failed")
+
+    class FakeSocketModule:
+        AF_INET = 0
+        SOCK_STREAM = 0
+        SOL_SOCKET = 0
+        SO_REUSEADDR = 0
+
+        @staticmethod
+        def socket(family, sock_type):
+            return FailingSocket()
+
+    helpers["WIFI_STREAM_ENABLED"] = True
+    helpers["network"] = FakeNetwork
+    helpers["socket"] = FakeSocketModule
+
+    assert helpers["wifi_init"]() is False
+
+
 def test_camera_auto_tunes_then_locks_brightness():
     helpers = load_main_helpers()
 

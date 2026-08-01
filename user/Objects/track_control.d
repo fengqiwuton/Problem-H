@@ -33,3 +33,4 @@
 .\objects\track_control.o: ..\code\filter.h
 .\objects\track_control.o: ..\code\scs_servo.h
 .\objects\track_control.o: track_control.h
+.\objects\track_control.o: track_controller.h
