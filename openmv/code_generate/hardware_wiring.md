@@ -170,7 +170,7 @@
 
 PB10、PB11 是 I2C 预留线，不要再拿去接串口循迹模块。
 
-### OLED 状态说明
+### 历史/其他流程：操场形轨迹程序的 OLED 状态说明（非当前连续循迹版本）
 
 当前操场形轨迹程序使用事件状态机，OLED 第一行 `S` 后面的数字表示：
 
@@ -239,3 +239,23 @@ Use a divider, for example:
 Test entry:
 
 Call `hcsr04_test_run()` in `main()` after board initialization. OLED shows distance in mm, OK flag, and `OBS` obstacle flag. The test threshold is 200mm.
+
+## 当前连续循迹版本
+
+本节描述 `track_controller` / `track_control` 的连续循迹流程；上文“操场形轨迹程序”的 `S0` 至 `S5` 状态机属于历史/其他流程，不能与本节的 OLED 阶段字符混用。
+
+- 循迹模块使用 UART1：PA9 / USART1_TX 接模块 RX，PA10 / USART1_RX 接模块 TX，接收 `$D...#` 数字帧。
+- 电机驱动板使用 UART2：PA2 / USART2_TX 接电机板 RX，PA3 / USART2_RX 接电机板 TX。
+- 终点为满足空间条件的宽黑线：至少 4 路检测到黑线、左右半区均有黑线、黑线跨越至少 5 路探头；该候选必须连续 2 帧确认后才触发停车请求。
+- 主动制动为非阻塞流程：收到停车请求后先按停车前轮速施加反向制动力，持续 40 ms；随后四轮输出均置零。
+
+### OLED 阶段字符
+
+| 字符 | 阶段 | 含义 |
+| --- | --- | --- |
+| S | 直线 | 连续 PD 正常循迹的直线阶段 |
+| C | 弯道 | 连续 PD 的弯道速度调度阶段 |
+| H | 短时保持方向 | 丢线后的短时方向保持 |
+| R | 定向找线 | 保持最近方向搜索黑线 |
+| L | 丢线停车 | 丢线超时后请求停车 |
+| B | 主动制动 | 40 ms 非阻塞反向制动，之后四轮零输出 |
