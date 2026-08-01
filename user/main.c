@@ -71,7 +71,7 @@ static void oled_show(void)
     OLED_ShowString(4, 1, "                ");
     if (oled_show_diagnostics)
     {
-        OLED_ShowString(4, 1, "F"); OLED_ShowNum(4, 2, info.frame_count, 5);
+        OLED_ShowString(4, 1, "F"); OLED_ShowNum(4, 2, info.d_frame_count, 5);
         OLED_ShowString(4, 8, "L"); OLED_ShowNum(4, 9, info.lost_ms, 5);
     }
     else
@@ -99,6 +99,8 @@ int main(void)
 
     while (1)
     {
+        uint8_t started = 0U;
+
         app_key_update(&btn, LOOP_DT_MS);
 
         if (running == 0U)
@@ -117,12 +119,13 @@ int main(void)
                 track_control_start();
                 elapsed_ms = 0;
                 running = 1;
+                started = 1U;
             }
         }
 
         if (running)
         {
-            if (elapsed_ms < TIME_LIMIT_MS)
+            if ((started == 0U) && (elapsed_ms < TIME_LIMIT_MS))
             {
                 if (elapsed_ms > TIME_LIMIT_MS - LOOP_DT_MS)
                     elapsed_ms = TIME_LIMIT_MS;
