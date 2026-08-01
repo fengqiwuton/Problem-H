@@ -123,9 +123,10 @@ static uint8_t is_finish_candidate(uint8_t bits)
            highest_index - lowest_index >= TRACK_FINISH_SPAN_MIN;
 }
 
-static void update_finish_detection(Track_Controller_t *controller, uint8_t bits)
+static void update_finish_detection(Track_Controller_t *controller,
+                                    uint8_t finish_candidate)
 {
-    if (is_finish_candidate(bits) != 0U)
+    if (finish_candidate != 0U)
     {
         if (controller->finish_frames < TRACK_FINISH_FRAMES)
             ++controller->finish_frames;
@@ -335,6 +336,7 @@ Track_Controller_Output_t track_controller_step(Track_Controller_t *controller,
     int sum;
     int delta;
     int target_turn;
+    uint8_t finish_candidate;
 
     output.active_count = count_active_sensors(bits, &sum);
     if (controller->phase == TRACK_PHASE_LOST_STOP)
@@ -347,7 +349,11 @@ Track_Controller_Output_t track_controller_step(Track_Controller_t *controller,
         return recover_lost_line(controller, output.active_count, dt_ms);
     }
 
-    update_finish_detection(controller, bits);
+    finish_candidate = is_finish_candidate(bits);
+    update_finish_detection(controller, finish_candidate);
+    if (finish_candidate != 0U)
+        return make_output(controller, output.active_count);
+
     if (controller->phase == TRACK_PHASE_RECOVERY_HOLD ||
         controller->phase == TRACK_PHASE_RECOVERY_SEARCH)
     {
