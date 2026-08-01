@@ -33,14 +33,15 @@
 
 | STM32 引脚 | 模块接口 | 说明 |
 | --- | --- | --- |
-| PB10 | SCL | 软件 I2C 时钟 |
-| PB11 | SDA | 软件 I2C 数据 |
+| PB6 | SCL | 软件 I2C 时钟 |
+| PB7 | SDA | 软件 I2C 数据 |
 | 3.3V | VCC | 模块供电 |
 | GND | GND | 共地 |
 
 注意：
 
-- 当前代码中的传感器 I2C 使用 `PB10/PB11`。
+- 当前代码中的传感器软件 I2C 使用 `PB6/PB7`。
+- `PB10` 是 `USART3_TX`，用于 SCS 串行总线舵机；`PB11` 保留给 USART3/舵机链路，二者均不接循迹模块。
 - 若模块标注支持 `3.3V-5V`，优先使用 `3.3V`，避免 I2C 电平不匹配。
 - 磁力计容易受电机、电池、大电流线干扰，安装时尽量远离电机和电源线。
 
@@ -121,7 +122,7 @@
 
 注意：
 - 本 UART3 / PB10、PB11 方案已停用；当前循迹仅以后文的“当前最终接线”和“当前连续循迹版本”为准，使用 UART1 的 PA9/PA10。
-- PB10/PB11 保留给 I2C 姿态模块，禁止连接循迹模块。
+- PB10/USART3_TX 用于 SCS 串行总线舵机，PB11 保留给 USART3/舵机链路，禁止连接循迹模块。
 - 电机驱动板仍使用 UART2：PA2/TX -> 电机板 RX，PA3/RX -> 电机板 TX。
 - 循迹模块不要再接 D1-D8 到 PB12/PB13/PB14/PB15/PA8/PC13/PC14/PC15。
 - OLED 上 `F` 是收到的循迹数据帧计数；如果一直是 0，说明串口接线、波特率或模块输出模式不对。
@@ -165,13 +166,13 @@
 
 | STM32 | 模块 | 说明 |
 | --- | --- | --- |
-| PB10 | SCL | I2C 时钟，保留给姿态模块 |
-| PB11 | SDA | I2C 数据，保留给姿态模块 |
+| PB6 | SCL | 软件 I2C 时钟，保留给姿态模块 |
+| PB7 | SDA | 软件 I2C 数据，保留给姿态模块 |
 | PA7 | MPU6050 INT | 姿态更新外部中断，用于刷新 yaw_gyro / yaw_Kalman |
 | 3.3V | VCC | 模块供电 |
 | GND | GND | 共地 |
 
-PB10、PB11 是 I2C 预留线，不要再拿去接串口循迹模块。
+PB10/USART3_TX 用于 SCS 串行总线舵机，PB11 保留给 USART3/舵机链路；PB10、PB11 都不要接循迹模块。
 
 ### 历史/其他流程：操场形轨迹程序的 OLED 状态说明（非当前连续循迹版本）
 
@@ -188,10 +189,9 @@ PB10、PB11 是 I2C 预留线，不要再拿去接串口循迹模块。
 
 入线确认 `LINE_ENTER_COUNT = 1`，检测到一次黑线就进入循迹；出线确认 `LINE_EXIT_COUNT = 20`，连续约 200ms 无黑线才认为真正出线。
 当前版本不再出线后强制转 180 度。程序会在第一次检测到出线时记录 `target_yaw = yaw_gyro`，把它作为圆弧出口切线方向；S3 只做短时间小角度闭环微调。为避免陀螺仪误差在长直线中放大，S5 不再使用 yaw 保持，改为左右轮同速直走，由下一段黑线重新校正轨迹。
-### Track PD tune keys
+### 历史/开发调参流程：Track PD tune keys
 
-The current program can tune line-following PD values while running.
-Change these pins in `user/app_board.h` if your wiring is different.
+本节保留历史开发阶段的在线按键调参流程，不是当前连续循迹主程序的操作方式。当前连续循迹主程序只使用 `PB1` 启停；OLED 显示控制器实际使用的 `Kp` / `Kd`，但不提供在线按键调整。以下接线与操作仅用于复现历史调参流程，若单独启用该流程，可在 `user/app_board.h` 中调整按键定义。
 
 | STM32 | Key | Function |
 | --- | --- | --- |
@@ -199,7 +199,7 @@ Change these pins in `user/app_board.h` if your wiring is different.
 | PB12 | DOWN | Decrease selected value |
 | GND | Key common pin | Active low, key pressed = 0 |
 
-OLED tune page:
+历史 OLED 调参页面：
 
 | OLED | Meaning |
 | --- | --- |
@@ -208,7 +208,7 @@ OLED tune page:
 | `Kp` / `Kd` | Current PD values, shown as real value |
 | `E` / `T` / `L` | Track error / turn output / lost count |
 
-Button usage:
+历史按键用法：
 
 | Key | Short press | Long press |
 | --- | --- | --- |
@@ -216,7 +216,7 @@ Button usage:
 | DOWN | Decrease selected value in `PD SET` | Hold UP+DOWN to start |
 | UP+DOWN short press | Select Kp/Kd in `PD SET` | - |
 
-`PD SET` page shows `U0 D0`; each value changes to `1` when that key is detected as pressed. PB1/MODE is not used by the current tuning flow.
+历史 `PD SET` 页面显示 `U0 D0`；检测到对应按键按下时数值变为 `1`。该历史流程不使用 PB1/MODE；当前连续循迹主程序则只使用 PB1 进行启停。
 
 ### HC-SR04 ultrasonic ranging module
 

@@ -243,8 +243,12 @@ static void test_recovery_needs_two_center_frames(void)
     (void)track_controller_step(&c, 0x00, 130);
     out = track_controller_step(&c, 0x18, 10);
     CHECK(out.phase == TRACK_PHASE_RECOVERY_SEARCH);
+    CHECK(c.lost_ms == 140);
+    CHECK(c.center_frames == 1);
     out = track_controller_step(&c, 0x18, 10);
     CHECK(out.phase == TRACK_PHASE_STRAIGHT);
+    CHECK(c.lost_ms == 0);
+    CHECK(c.center_frames == 0);
 }
 
 static void test_recovery_center_frames_must_be_consecutive(void)
@@ -293,6 +297,24 @@ static void test_lost_line_stops_at_600_ms_not_599_ms(void)
     CHECK(out.phase == TRACK_PHASE_RECOVERY_SEARCH);
     CHECK(out.stop_requested == 0);
     out = track_controller_step(&c, 0x00, 1);
+    CHECK(out.phase == TRACK_PHASE_LOST_STOP);
+    CHECK(out.stop_requested == 1);
+}
+
+static void test_recovery_noncenter_nonzero_frames_stop_at_600_ms(void)
+{
+    Track_Controller_t c;
+    Track_Controller_Output_t out;
+
+    track_controller_init(&c);
+    (void)track_controller_step(&c, 0x20, 10);
+    (void)track_controller_step(&c, 0x00, 120);
+    out = track_controller_step(&c, 0x04, 479);
+    CHECK(c.lost_ms == 599);
+    CHECK(out.phase == TRACK_PHASE_RECOVERY_SEARCH);
+    CHECK(out.stop_requested == 0);
+    out = track_controller_step(&c, 0x04, 1);
+    CHECK(c.lost_ms == 600);
     CHECK(out.phase == TRACK_PHASE_LOST_STOP);
     CHECK(out.stop_requested == 1);
 }
@@ -413,6 +435,46 @@ static void test_brake_speed_is_opposite_and_bounded(void)
     CHECK(track_controller_brake_speed(-30) == 20);
 }
 
+static void test_motor_mapping_keeps_zero_sides_at_zero(void)
+{
+    Track_Motor_Speeds_t speeds;
+
+    speeds = track_controller_map_motor_speeds(0, 0, 10);
+    CHECK(speeds.motor_1 == 0);
+    CHECK(speeds.motor_2 == 0);
+    CHECK(speeds.motor_3 == 0);
+    CHECK(speeds.motor_4 == 0);
+
+    speeds = track_controller_map_motor_speeds(0, -60, 10);
+    CHECK(speeds.motor_1 == 50);
+    CHECK(speeds.motor_2 == 50);
+    CHECK(speeds.motor_3 == 0);
+    CHECK(speeds.motor_4 == 0);
+
+    speeds = track_controller_map_motor_speeds(90, 0, 10);
+    CHECK(speeds.motor_1 == 0);
+    CHECK(speeds.motor_2 == 0);
+    CHECK(speeds.motor_3 == -80);
+    CHECK(speeds.motor_4 == -80);
+}
+
+static void test_motor_mapping_preserves_nonzero_signs_and_trim(void)
+{
+    Track_Motor_Speeds_t speeds;
+
+    speeds = track_controller_map_motor_speeds(120, 80, 10);
+    CHECK(speeds.motor_1 == -90);
+    CHECK(speeds.motor_2 == -90);
+    CHECK(speeds.motor_3 == -110);
+    CHECK(speeds.motor_4 == -110);
+
+    speeds = track_controller_map_motor_speeds(-120, -80, 10);
+    CHECK(speeds.motor_1 == 70);
+    CHECK(speeds.motor_2 == 70);
+    CHECK(speeds.motor_3 == 130);
+    CHECK(speeds.motor_4 == 130);
+}
+
 int main(void)
 {
     test_center_has_no_artificial_weave();
@@ -425,6 +487,7 @@ int main(void)
     test_defaults_and_reset_preserves_gains();
     test_lost_line_keeps_last_curve_direction();
     test_lost_line_mirrors_negative_curve_direction();
+    test_recovery_noncenter_nonzero_frames_stop_at_600_ms();
     test_recovery_needs_two_center_frames();
     test_recovery_center_frames_must_be_consecutive();
     test_lost_line_requests_stop_at_600_ms();
@@ -438,6 +501,8 @@ int main(void)
     test_finish_marker_requires_consecutive_wide_frames();
     test_finish_marker_noncandidate_frame_resets_sequence();
     test_brake_speed_is_opposite_and_bounded();
+    test_motor_mapping_keeps_zero_sides_at_zero();
+    test_motor_mapping_preserves_nonzero_signs_and_trim();
     puts("track_controller core tests passed");
     return 0;
 }

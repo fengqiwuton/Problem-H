@@ -31,6 +31,7 @@ static uint8_t sensor_active_count = 0;
 static int drive_left_now = 0;
 static int drive_right_now = 0;
 static uint8_t track_braking = 0;
+static uint8_t track_stop_latched = 0;
 static uint16_t track_brake_elapsed_ms = 0;
 static int8_t track_preferred_dir = 0;
 
@@ -106,10 +107,15 @@ static int ramp_speed(int current, int target)
 
 static void send_drive_command(int left_speed, int right_speed)
 {
-    control_speed(-right_speed - TRACK_TRIM,
-                  -right_speed - TRACK_TRIM,
-                  -left_speed + TRACK_TRIM,
-                  -left_speed + TRACK_TRIM);
+    Track_Motor_Speeds_t speeds;
+
+    speeds = track_controller_map_motor_speeds(left_speed,
+                                               right_speed,
+                                               TRACK_TRIM);
+    control_speed(speeds.motor_1,
+                  speeds.motor_2,
+                  speeds.motor_3,
+                  speeds.motor_4);
 }
 
 static void clear_output(void)
@@ -121,7 +127,7 @@ static void clear_output(void)
 
 void track_car_drive(int left_speed, int right_speed)
 {
-    if (track_braking != 0U)
+    if (track_braking != 0U || track_stop_latched != 0U)
         return;
 
     drive_left_now = ramp_speed(drive_left_now, left_speed);
@@ -134,9 +140,10 @@ void track_car_request_stop(void)
     int brake_left;
     int brake_right;
 
-    if (track_braking != 0U)
+    if (track_stop_latched != 0U)
         return;
 
+    track_stop_latched = 1;
     brake_left = track_controller_brake_speed(drive_left_now);
     brake_right = track_controller_brake_speed(drive_right_now);
     track_braking = 1;
@@ -192,6 +199,7 @@ void track_control_init(void)
 void track_control_start(void)
 {
     track_car_stop_immediate();
+    track_stop_latched = 0;
     track_controller_reset(&track_controller);
     clear_output();
     track_consumed_sequence = track_d_sequence;

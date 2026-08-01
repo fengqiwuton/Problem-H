@@ -52,6 +52,14 @@ typedef struct
     uint8_t stop_requested;
 } Track_Controller_Output_t;
 
+typedef struct
+{
+    int motor_1;
+    int motor_2;
+    int motor_3;
+    int motor_4;
+} Track_Motor_Speeds_t;
+
 void track_controller_init(Track_Controller_t *controller);
 void track_controller_reset(Track_Controller_t *controller);
 void track_controller_set_gains(Track_Controller_t *controller, int kp_x100, int kd_x100);
@@ -60,5 +68,8 @@ Track_Controller_Output_t track_controller_step(Track_Controller_t *controller,
                                                 uint8_t bits,
                                                 uint16_t dt_ms);
 int track_controller_brake_speed(int speed);
+Track_Motor_Speeds_t track_controller_map_motor_speeds(int left_speed,
+                                                       int right_speed,
+                                                       int trim);
 
 #endif

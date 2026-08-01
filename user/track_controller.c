@@ -159,9 +159,7 @@ static Track_Controller_Output_t make_output(const Track_Controller_t *controlle
     return output;
 }
 
-static Track_Controller_Output_t recover_lost_line(Track_Controller_t *controller,
-                                                    uint8_t active_count,
-                                                    uint16_t dt_ms)
+static void advance_recovery(Track_Controller_t *controller, uint16_t dt_ms)
 {
     uint16_t remaining_ms = TRACK_RECOVERY_STOP_MS - controller->lost_ms;
 
@@ -170,7 +168,6 @@ static Track_Controller_Output_t recover_lost_line(Track_Controller_t *controlle
     else
         controller->lost_ms += dt_ms;
 
-    controller->center_frames = 0;
     if (controller->lost_ms >= TRACK_RECOVERY_STOP_MS)
     {
         controller->phase = TRACK_PHASE_LOST_STOP;
@@ -190,6 +187,14 @@ static Track_Controller_Output_t recover_lost_line(Track_Controller_t *controlle
         controller->base_speed = TRACK_RECOVERY_HOLD_BASE;
         controller->turn = controller->last_direction * TRACK_RECOVERY_HOLD_TURN;
     }
+}
+
+static Track_Controller_Output_t recover_lost_line(Track_Controller_t *controller,
+                                                    uint8_t active_count,
+                                                    uint16_t dt_ms)
+{
+    controller->center_frames = 0;
+    advance_recovery(controller, dt_ms);
 
     return make_output(controller, active_count);
 }
@@ -349,17 +354,20 @@ Track_Controller_Output_t track_controller_step(Track_Controller_t *controller,
         return recover_lost_line(controller, output.active_count, dt_ms);
     }
 
-    finish_candidate = is_finish_candidate(bits);
-    update_finish_detection(controller, finish_candidate);
-    if (finish_candidate != 0U)
-        return make_output(controller, output.active_count);
-
     if (controller->phase == TRACK_PHASE_RECOVERY_HOLD ||
         controller->phase == TRACK_PHASE_RECOVERY_SEARCH)
     {
         if (update_recovery_center_frames(controller, bits) == 0U)
+        {
+            advance_recovery(controller, dt_ms);
             return make_output(controller, output.active_count);
+        }
     }
+
+    finish_candidate = is_finish_candidate(bits);
+    update_finish_detection(controller, finish_candidate);
+    if (finish_candidate != 0U)
+        return make_output(controller, output.active_count);
 
     if (output.active_count != 0U)
         controller->error = sum / output.active_count;
@@ -403,4 +411,24 @@ int track_controller_brake_speed(int speed)
                             TRACK_BRAKE_OUTPUT_MIN,
                             TRACK_BRAKE_OUTPUT_MAX);
     return speed > 0 ? -brake_speed : brake_speed;
+}
+
+Track_Motor_Speeds_t track_controller_map_motor_speeds(int left_speed,
+                                                       int right_speed,
+                                                       int trim)
+{
+    Track_Motor_Speeds_t speeds;
+    int right_motor_speed = 0;
+    int left_motor_speed = 0;
+
+    if (right_speed != 0)
+        right_motor_speed = -right_speed - trim;
+    if (left_speed != 0)
+        left_motor_speed = -left_speed + trim;
+
+    speeds.motor_1 = right_motor_speed;
+    speeds.motor_2 = right_motor_speed;
+    speeds.motor_3 = left_motor_speed;
+    speeds.motor_4 = left_motor_speed;
+    return speeds;
 }
