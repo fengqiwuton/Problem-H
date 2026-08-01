@@ -43,7 +43,7 @@ static void oled_show(void)
         OLED_ShowChar(3, 1 + i * 2, (info.bits >> (7 - i)) & 0x01 ? '1' : '-');
 
     OLED_ShowString(4, 1, "F"); OLED_ShowNum(4, 2, info.frame_count, 3);
-    OLED_ShowString(4, 6, "L"); OLED_ShowNum(4, 7, info.lost_count, 3);
+    OLED_ShowString(4, 6, "L"); OLED_ShowNum(4, 7, info.lost_ms, 3);
 }
 
 int main(void)
@@ -52,7 +52,7 @@ int main(void)
     control_speed(0, 0, 0, 0);
     delay_ms(50);
     motor_init();
-    track_car_stop();
+    track_car_stop_immediate();
 
     OLED_Init(); OLED_Clear();
     track_control_init();
@@ -67,27 +67,27 @@ int main(void)
         app_key_update(&btn, LOOP_DT_MS);
         if (app_key_take_pressed(&btn))
         {
-            if (running) { running = 0; track_car_stop(); }
+            if (running) { running = 0; track_car_stop_immediate(); }
             else         { running = 1; elapsed_ms = 0; }
         }
 
         if (running)
         {
             elapsed_ms += LOOP_DT_MS;
-            track_follow_update();
+            track_follow_update(LOOP_DT_MS);
 
             Track_Info_t info = track_get_info();
 
             /* 停车条件: 超时 或 ≥4灯同时亮 */
             if (elapsed_ms >= TIME_LIMIT_MS || info.active_count >= 4)
             {
-                track_car_stop();
+                track_car_stop_immediate();
                 running = 0;
             }
         }
         else
         {
-            track_car_stop();
+            track_car_stop_immediate();
         }
 
         oled_tick += LOOP_DT_MS;

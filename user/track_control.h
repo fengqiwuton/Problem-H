@@ -2,21 +2,31 @@
 #define __TRACK_CONTROL_H__
 
 #include "stdint.h"
+#include "track_controller.h"
 
 typedef struct
 {
 	/* Raw digital data from the module. */
 	uint8_t raw;
-	/* Active black-line bits after polarity conversion. */
 	uint8_t bits;
 	uint8_t active_count;
-	uint8_t no_frame_count;
-	uint8_t frame_count;
-	uint8_t d_frame_count;
-	uint8_t a_frame_count;
-	uint8_t lost_count;
+	uint16_t no_frame_ms;
+	uint16_t frame_count;
+	uint16_t d_frame_count;
+	uint16_t a_frame_count;
+	uint16_t lost_ms;
 	int error;
+	int derivative;
 	int turn;
+	int base_speed;
+	int left_speed;
+	int right_speed;
+	int kp_x100;
+	int kd_x100;
+	Track_Controller_Phase_t phase;
+	uint8_t finish_detected;
+	uint8_t stop_requested;
+	uint8_t braking;
 	uint16_t analog[8];
 } Track_Info_t;
 
@@ -40,9 +50,13 @@ void track_uart_rx(uint8_t data);
 int  track_read_line_error(void);
 uint8_t track_read_active_count(void);
 /* Line-following control */
-void track_follow_update(void);
+void track_control_start(void);
+void track_follow_update(uint16_t dt_ms);
 void track_car_drive(int left_speed, int right_speed);
-void track_car_stop(void);
+void track_car_request_stop(void);
+void track_car_stop_update(uint16_t dt_ms);
+void track_car_stop_immediate(void);
+uint8_t track_car_is_braking(void);
 void track_set_preferred_dir(int8_t dir);
 int8_t track_get_trend_dir(void);
 uint8_t track_center_ready(void);
