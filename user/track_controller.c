@@ -69,13 +69,17 @@ static int limit_turn_change(int current, int target)
     if (target > current)
     {
         int step = target - current;
-        return current + (step > TRACK_TURN_RISE_STEP ? TRACK_TURN_RISE_STEP : step);
+        int limit = current < 0 && target <= 0 ?
+                    TRACK_TURN_FALL_STEP : TRACK_TURN_RISE_STEP;
+        return current + (step > limit ? limit : step);
     }
 
     if (target < current)
     {
         int step = current - target;
-        return current - (step > TRACK_TURN_FALL_STEP ? TRACK_TURN_FALL_STEP : step);
+        int limit = current <= 0 && target < 0 ?
+                    TRACK_TURN_RISE_STEP : TRACK_TURN_FALL_STEP;
+        return current - (step > limit ? limit : step);
     }
 
     return current;

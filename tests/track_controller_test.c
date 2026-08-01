@@ -40,6 +40,22 @@ static void test_turn_grows_continuously_before_outer_sensor(void)
     CHECK(b.base_speed <= 190 && b.base_speed >= 145);
 }
 
+static void test_negative_turn_growth_is_limited_to_18(void)
+{
+    Track_Controller_t c;
+    Track_Controller_Output_t a;
+    Track_Controller_Output_t b;
+
+    track_controller_init(&c);
+    (void)track_controller_step(&c, 0x18, 10);
+    a = track_controller_step(&c, 0x04, 10);
+    b = track_controller_step(&c, 0x04, 10);
+    CHECK(a.error == -55);
+    CHECK(a.turn < 0 && a.turn >= -18);
+    CHECK(b.turn < a.turn);
+    CHECK(a.turn - b.turn <= 18);
+}
+
 static void test_exit_damping_cannot_cross_zero_in_one_frame(void)
 {
     Track_Controller_t c;
@@ -56,11 +72,136 @@ static void test_exit_damping_cannot_cross_zero_in_one_frame(void)
     CHECK(abs_i(after.turn) <= 140);
 }
 
+static void test_pd_filter_and_input_clamp(void)
+{
+    Track_Controller_t c;
+    Track_Controller_Output_t out;
+    int i;
+
+    track_controller_init(&c);
+    track_controller_set_gains(&c, 20, 100);
+    out = track_controller_step(&c, 0x20, 10);
+    CHECK(out.derivative == 18);
+    CHECK(out.turn == 18);
+    out = track_controller_step(&c, 0x20, 10);
+    CHECK(out.derivative == 12);
+    CHECK(out.turn == 23);
+
+    track_controller_init(&c);
+    track_controller_set_gains(&c, 100, 0);
+    out = track_controller_step(&c, 0x80, 10);
+    CHECK(out.error == 160);
+    CHECK(out.derivative == 26);
+    CHECK(out.turn == 18);
+    for (i = 0; i < 7; ++i)
+        out = track_controller_step(&c, 0x80, 10);
+    CHECK(out.derivative == 0);
+    CHECK(out.turn == 140);
+    out = track_controller_step(&c, 0x01, 10);
+    CHECK(out.error == -160);
+    CHECK(out.derivative == -26);
+    CHECK(out.turn == 116);
+}
+
+static void test_curve_exit_requires_six_frames_and_holds_speed(void)
+{
+    Track_Controller_t c;
+    Track_Controller_Output_t out;
+    int i;
+
+    track_controller_init(&c);
+    (void)track_controller_step(&c, 0x20, 10);
+    out = track_controller_step(&c, 0x20, 10);
+    CHECK(out.phase == TRACK_PHASE_CURVE);
+    CHECK(out.base_speed == 190);
+    for (i = 0; i < 5; ++i)
+    {
+        out = track_controller_step(&c, 0x18, 10);
+        CHECK(out.phase == TRACK_PHASE_CURVE);
+        CHECK(out.base_speed == 190);
+    }
+    out = track_controller_step(&c, 0x18, 10);
+    CHECK(out.phase == TRACK_PHASE_STRAIGHT);
+    CHECK(out.base_speed == 190);
+    for (i = 0; i < 9; ++i)
+    {
+        out = track_controller_step(&c, 0x18, 10);
+        CHECK(out.base_speed == 190);
+    }
+    out = track_controller_step(&c, 0x18, 10);
+    CHECK(out.base_speed == 198);
+}
+
+static void test_speed_targets_and_ramp_limits(void)
+{
+    Track_Controller_t c;
+    Track_Controller_Output_t a;
+    Track_Controller_Output_t b;
+    Track_Controller_Output_t d;
+
+    track_controller_init(&c);
+    a = track_controller_step(&c, 0x80, 10);
+    b = track_controller_step(&c, 0x80, 10);
+    d = track_controller_step(&c, 0x80, 10);
+    CHECK(a.base_speed == 210);
+    CHECK(b.base_speed == 180);
+    CHECK(d.base_speed == 150);
+    CHECK(a.base_speed - b.base_speed == 30);
+    CHECK(b.base_speed - d.base_speed == 30);
+    d = track_controller_step(&c, 0x80, 10);
+    CHECK(d.base_speed == 145);
+
+    track_controller_init(&c);
+    (void)track_controller_step(&c, 0x40, 10);
+    (void)track_controller_step(&c, 0x40, 10);
+    d = track_controller_step(&c, 0x40, 10);
+    CHECK(d.base_speed == 165);
+
+    track_controller_init(&c);
+    (void)track_controller_step(&c, 0x90, 10);
+    d = track_controller_step(&c, 0x90, 10);
+    CHECK(d.base_speed == 180);
+
+    track_controller_init(&c);
+    (void)track_controller_step(&c, 0x20, 10);
+    d = track_controller_step(&c, 0x20, 10);
+    CHECK(d.base_speed == 190);
+}
+
+static void test_defaults_and_reset_preserves_gains(void)
+{
+    Track_Controller_t c;
+    Track_Controller_Gains_t gains;
+
+    track_controller_init(&c);
+    gains = track_controller_get_gains(&c);
+    CHECK(gains.kp_x100 == 75);
+    CHECK(gains.kd_x100 == 55);
+    CHECK(c.base_speed == 210);
+    track_controller_set_gains(&c, 123, 45);
+    (void)track_controller_step(&c, 0x80, 10);
+    track_controller_reset(&c);
+    gains = track_controller_get_gains(&c);
+    CHECK(gains.kp_x100 == 123);
+    CHECK(gains.kd_x100 == 45);
+    CHECK(c.error == 0);
+    CHECK(c.last_error == 0);
+    CHECK(c.derivative == 0);
+    CHECK(c.turn == 0);
+    CHECK(c.base_speed == 210);
+    CHECK(c.phase == TRACK_PHASE_STRAIGHT);
+}
+
 int main(void)
 {
     test_center_has_no_artificial_weave();
     test_turn_grows_continuously_before_outer_sensor();
+    test_negative_turn_growth_is_limited_to_18();
     test_exit_damping_cannot_cross_zero_in_one_frame();
+    test_pd_filter_and_input_clamp();
+    test_curve_exit_requires_six_frames_and_holds_speed();
+    test_speed_targets_and_ramp_limits();
+    test_defaults_and_reset_preserves_gains();
     puts("track_controller core tests passed");
     return 0;
 }
