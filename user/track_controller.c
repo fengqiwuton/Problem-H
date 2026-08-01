@@ -23,6 +23,20 @@
 #define TRACK_SPEED_DOWN_STEP        30
 #define TRACK_SPEED_UP_STEP           8
 
+#define TRACK_RECOVERY_HOLD_MS       120
+#define TRACK_RECOVERY_STOP_MS       600
+#define TRACK_RECOVERY_HOLD_BASE      90
+#define TRACK_RECOVERY_HOLD_TURN      80
+#define TRACK_RECOVERY_SEARCH_BASE    45
+#define TRACK_RECOVERY_SEARCH_TURN    70
+#define TRACK_RECOVERY_CENTER_FRAMES   2
+#define TRACK_FINISH_ACTIVE_MIN        4
+#define TRACK_FINISH_SPAN_MIN          5
+#define TRACK_FINISH_FRAMES            2
+#define TRACK_BRAKE_INPUT_MIN          30
+#define TRACK_BRAKE_OUTPUT_MIN         20
+#define TRACK_BRAKE_OUTPUT_MAX         70
+
 static const int track_sensor_weight[8] =
     {-160, -105, -55, -18, 18, 55, 105, 160};
 
@@ -83,6 +97,125 @@ static int limit_turn_change(int current, int target)
     }
 
     return current;
+}
+
+static uint8_t is_finish_candidate(uint8_t bits)
+{
+    uint8_t active_count = 0;
+    uint8_t index;
+    uint8_t lowest_index = 8;
+    uint8_t highest_index = 0;
+
+    for (index = 0; index < 8; ++index)
+    {
+        if ((bits & ((uint8_t)1U << index)) != 0U)
+        {
+            if (lowest_index == 8)
+                lowest_index = index;
+            highest_index = index;
+            ++active_count;
+        }
+    }
+
+    return active_count >= TRACK_FINISH_ACTIVE_MIN &&
+           (bits & 0x0FU) != 0U &&
+           (bits & 0xF0U) != 0U &&
+           highest_index - lowest_index >= TRACK_FINISH_SPAN_MIN;
+}
+
+static void update_finish_detection(Track_Controller_t *controller, uint8_t bits)
+{
+    if (is_finish_candidate(bits) != 0U)
+    {
+        if (controller->finish_frames < TRACK_FINISH_FRAMES)
+            ++controller->finish_frames;
+        if (controller->finish_frames >= TRACK_FINISH_FRAMES)
+            controller->finish_detected = 1;
+    }
+    else if (controller->finish_detected == 0U)
+    {
+        controller->finish_frames = 0;
+    }
+}
+
+static Track_Controller_Output_t make_output(const Track_Controller_t *controller,
+                                              uint8_t active_count)
+{
+    Track_Controller_Output_t output;
+
+    memset(&output, 0, sizeof(output));
+    output.error = controller->error;
+    output.derivative = controller->derivative;
+    output.turn = controller->turn;
+    output.base_speed = controller->base_speed;
+    output.left_speed = output.base_speed + output.turn;
+    output.right_speed = output.base_speed - output.turn;
+    output.active_count = active_count;
+    output.phase = controller->phase;
+    output.finish_detected = controller->finish_detected;
+    output.stop_requested = controller->stop_requested;
+
+    return output;
+}
+
+static Track_Controller_Output_t recover_lost_line(Track_Controller_t *controller,
+                                                    uint8_t active_count,
+                                                    uint16_t dt_ms)
+{
+    uint16_t remaining_ms = TRACK_RECOVERY_STOP_MS - controller->lost_ms;
+
+    if (dt_ms >= remaining_ms)
+        controller->lost_ms = TRACK_RECOVERY_STOP_MS;
+    else
+        controller->lost_ms += dt_ms;
+
+    controller->center_frames = 0;
+    if (controller->lost_ms >= TRACK_RECOVERY_STOP_MS)
+    {
+        controller->phase = TRACK_PHASE_LOST_STOP;
+        controller->base_speed = 0;
+        controller->turn = 0;
+        controller->stop_requested = 1;
+    }
+    else if (controller->lost_ms >= TRACK_RECOVERY_HOLD_MS)
+    {
+        controller->phase = TRACK_PHASE_RECOVERY_SEARCH;
+        controller->base_speed = TRACK_RECOVERY_SEARCH_BASE;
+        controller->turn = controller->last_direction * TRACK_RECOVERY_SEARCH_TURN;
+    }
+    else
+    {
+        controller->phase = TRACK_PHASE_RECOVERY_HOLD;
+        controller->base_speed = TRACK_RECOVERY_HOLD_BASE;
+        controller->turn = controller->last_direction * TRACK_RECOVERY_HOLD_TURN;
+    }
+
+    return make_output(controller, active_count);
+}
+
+static uint8_t update_recovery_center_frames(Track_Controller_t *controller,
+                                             uint8_t bits)
+{
+    if ((bits & 0x18U) == 0U)
+    {
+        controller->center_frames = 0;
+        return 0;
+    }
+
+    if (controller->center_frames < TRACK_RECOVERY_CENTER_FRAMES)
+        ++controller->center_frames;
+    if (controller->center_frames < TRACK_RECOVERY_CENTER_FRAMES)
+        return 0;
+
+    controller->lost_ms = 0;
+    controller->center_frames = 0;
+    controller->error = 0;
+    controller->last_error = 0;
+    controller->derivative = 0;
+    controller->turn = 0;
+    controller->last_direction = 0;
+    controller->phase = TRACK_PHASE_STRAIGHT;
+    return 1;
 }
 
 static int curve_speed_target(int absolute_error)
@@ -204,6 +337,24 @@ Track_Controller_Output_t track_controller_step(Track_Controller_t *controller,
     int target_turn;
 
     output.active_count = count_active_sensors(bits, &sum);
+    if (controller->phase == TRACK_PHASE_LOST_STOP)
+        return make_output(controller, output.active_count);
+
+    if (bits == 0U)
+    {
+        if (controller->finish_detected == 0U)
+            controller->finish_frames = 0;
+        return recover_lost_line(controller, output.active_count, dt_ms);
+    }
+
+    update_finish_detection(controller, bits);
+    if (controller->phase == TRACK_PHASE_RECOVERY_HOLD ||
+        controller->phase == TRACK_PHASE_RECOVERY_SEARCH)
+    {
+        if (update_recovery_center_frames(controller, bits) == 0U)
+            return make_output(controller, output.active_count);
+    }
+
     if (output.active_count != 0U)
         controller->error = sum / output.active_count;
 
@@ -223,17 +374,7 @@ Track_Controller_Output_t track_controller_step(Track_Controller_t *controller,
     update_curve_phase(controller);
     controller->base_speed = schedule_speed(controller);
 
-    memset(&output, 0, sizeof(output));
-    output.error = controller->error;
-    output.derivative = controller->derivative;
-    output.turn = controller->turn;
-    output.base_speed = controller->base_speed;
-    output.left_speed = output.base_speed + output.turn;
-    output.right_speed = output.base_speed - output.turn;
-    output.active_count = count_active_sensors(bits, &sum);
-    output.phase = controller->phase;
-    output.finish_detected = controller->finish_detected;
-    output.stop_requested = controller->stop_requested;
+    output = make_output(controller, output.active_count);
 
     controller->last_error = controller->error;
     if (controller->exit_hold_ms != 0U)
@@ -247,5 +388,13 @@ Track_Controller_Output_t track_controller_step(Track_Controller_t *controller,
 
 int track_controller_brake_speed(int speed)
 {
-    return -speed;
+    int brake_speed;
+
+    if (abs_int(speed) < TRACK_BRAKE_INPUT_MIN)
+        return 0;
+
+    brake_speed = clamp_int(abs_int(speed) / 3,
+                            TRACK_BRAKE_OUTPUT_MIN,
+                            TRACK_BRAKE_OUTPUT_MAX);
+    return speed > 0 ? -brake_speed : brake_speed;
 }
