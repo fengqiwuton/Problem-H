@@ -22,6 +22,8 @@ void motor_test_run(void);
 void app_test_oled_basic(void);
 void app_test_uart_basic(void);
 void app_test_adc_oled(void);
+void app_test_scs_servo(void);
+/* Legacy name retained for existing callers; it now tests the SC09 bus servo. */
 void app_test_pwm_servo(void);
 void app_test_motor_basic(void);
 

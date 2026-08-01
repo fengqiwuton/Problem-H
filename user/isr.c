@@ -1,5 +1,6 @@
 #include "stm32f10x.h"
 #include "headfile.h"
+#include "openmv_uart.h"
 
 extern void track_uart_rx(uint8_t data);
 
@@ -22,10 +23,7 @@ void TIM3_IRQHandler(void)
 
 void TIM4_IRQHandler(void)
 {
-    if (TIM4->SR & 1)
-    {
-        TIM4->SR &= ~1;
-    }
+    openmv_uart_tim4_irq();
 }
 
 void USART1_IRQHandler(void)
@@ -109,15 +107,7 @@ void EXTI3_IRQHandler(void)
 
 void EXTI4_IRQHandler(void)
 {
-    if (EXTI->PR & (1 << 4))
-    {
-        if (gpio_get(GPIO_A, Pin_5))
-            Encoder_count2++;
-        else
-            Encoder_count2--;
-
-        EXTI->PR = 1 << 4;
-    }
+    openmv_uart_exti4_irq();
 }
 
 void EXTI9_5_IRQHandler(void)

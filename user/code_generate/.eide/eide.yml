@@ -25,6 +25,8 @@ virtualFolder:
         - path: ../spi_soft_test.c
         - path: ../encoder_test.c
         - path: ../motor_test.c
+        - path: ../track_control.c
+        - path: ../track_control.h
       folders: []
     - name: code
       files:
@@ -36,6 +38,18 @@ virtualFolder:
         - path: ../../code/gray_track.h
         - path: ../../code/filter.c
         - path: ../../code/filter.h
+        - path: ../../code/scs_servo.c
+        - path: ../../code/scs_servo.h
+        - path: ../../code/openmv_uart.c
+        - path: ../../code/openmv_uart.h
+        - path: ../../code/balance_calibration.c
+        - path: ../../code/balance_calibration.h
+        - path: ../../code/task3_openloop.c
+        - path: ../../code/task3_openloop.h
+        - path: ../../code/task3_asym_move.c
+        - path: ../../code/task3_asym_move.h
+        - path: ../../code/task3_control.c
+        - path: ../../code/task3_control.h
       folders: []
     - name: sys
       files:

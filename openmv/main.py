@@ -15,7 +15,8 @@ sensor.skip_frames(time=2000)
 sensor.set_auto_gain(False)
 sensor.set_auto_whitebal(False)
 
-uart = UART(3, 115200, timeout_char=10)
+# OpenMV UART(3): P4=TX, P5=RX. It sends $B,<0.1mm position># at 9600 baud.
+uart = UART(3, 9600, timeout_char=10)
 
 CENTER_X = 160
 SCALE_MM = 0.38
@@ -96,7 +97,9 @@ while True:
 
     img.draw_string(5, 5, labels[DEBUG_STEP], color=255, scale=1.5)
 
-    # ── UART ──
+    # ── UART output: $B,<signed position in 0.1mm># ──
+    position_0p1mm = 0
+    valid = 0
     if blobs:
         best = blobs[0]
         best_score = 0
@@ -109,10 +112,13 @@ while True:
                     best_score = s
                     best = b
         ball_cx = best.cx() + ROI_X
-        ball_mm = int((ball_cx - CENTER_X) * SCALE_MM)
-        now = time.ticks_ms()
-        if time.ticks_diff(now, last_uart_ms) > 50:
-            uart.write("$B,%d#" % ball_mm)
-            last_uart_ms = now
+        position_0p1mm = int((ball_cx - CENTER_X) * SCALE_MM * 10)
+        position_0p1mm = max(-32768, min(32767, position_0p1mm))
+        valid = 1
 
-    time.sleep_ms(50)
+    # UART frame: $B,<signed position in 0.1mm>#. Send only confirmed balls;
+    # no frame for 120 ms makes the STM32 enter its camera-lost safety state.
+    now = time.ticks_ms()
+    if valid and time.ticks_diff(now, last_uart_ms) >= 40:
+        uart.write("$B,%d#" % position_0p1mm)
+        last_uart_ms = now
