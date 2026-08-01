@@ -1,220 +1,472 @@
-# 钢球检测: QQVGA高速 + 管壁定位 + binary + find_circles
-import sensor, image, time
+# Robust OpenMV ball tracking for the bright horizontal pipe.
+# UART protocol to STM32: "$B,<whole_mm>#" when found, "$L#" when lost.
+
+import sensor
+import time
 from pyb import UART
 
-BALL_BINARY = (85, 130)
-LEARN_FRAMES = 30
-RELOCK_EVERY = 200   # 每200帧重锁, 减少开销
+
+# ---------------- Tunable constants ----------------
+
+IMG_W = 160
+IMG_H = 120
+CENTER_X = 80
+
+# Measure on the real pipe. Current sample set is close to 0.76 mm/pixel.
+MM_PER_PIXEL = 0.76
+
+UART_ID = 3
+UART_BAUD = 9600
+UART_FOUND_PERIOD_MS = 35
+UART_LOST_PERIOD_MS = 100
+
+DEBUG_DRAW = True
+PRINT_STATUS = True
+STATUS_PERIOD_MS = 100
+
+# Let auto control find a usable brightness at startup, then lock it.
+AUTO_TUNE_MS = 1500
+LOCK_SETTLE_MS = 200
+GAIN_DB_MIN = 0
+GAIN_DB_MAX = 24
+EXPOSURE_US_MIN = 3000
+EXPOSURE_US_MAX = 30000
+
+# Pipe search is expensive, so run it only when needed.
+PIPE_RELOCK_FRAMES = 120
+PIPE_LOST_RELOCK = 8
+PIPE_SCAN_X_STEP = 4
+PIPE_BRIGHT_RATIO = 0.68
+PIPE_MIN_H = 8
+PIPE_MAX_H = 36
+PIPE_MARGIN_Y = 5
+PIPE_SEARCH_BOTTOM_MARGIN = 3
+PIPE_USABLE_MARGIN_X = 4
+PIPE_DRAW_BOTTOM_TRIM = 2
+PIPE_TILE_COUNT = 4
+PIPE_TILE_OVERLAP = 6
+
+# Ball geometry in QQVGA. Tune if the camera distance changes a lot.
+BALL_MIN_PIXELS = 5
+BALL_MAX_PIXELS = 260
+BALL_MIN_WH = 3
+BALL_MAX_WH = 24
+BALL_MAX_ASPECT_X100 = 230
+BALL_MIN_DENSITY_X100 = 28
+DARK_MARGIN = 22
+DARK_MAX = 175
+
+TRACK_HALF_W = 28
+TRACK_HALF_W_LOST_STEP = 8
+TRACK_USE_LOST_FRAMES = 4
+SMOOTH_OLD = 3
+SMOOTH_NEW = 1
+
+
+# ---------------- Small helpers ----------------
+
+def clamp(v, lo, hi):
+    if v < lo:
+        return lo
+    if v > hi:
+        return hi
+    return v
+
+
+def clip_roi(x, y, w, h):
+    if x < 0:
+        w += x
+        x = 0
+    if y < 0:
+        h += y
+        y = 0
+    if x + w > IMG_W:
+        w = IMG_W - x
+    if y + h > IMG_H:
+        h = IMG_H - y
+    if w < 1:
+        w = 1
+    if h < 1:
+        h = 1
+    return (int(x), int(y), int(w), int(h))
+
+
+def percentile_value(hist, p, fallback):
+    try:
+        item = hist.get_percentile(p)
+        try:
+            return int(item.value())
+        except Exception:
+            return int(item)
+    except Exception:
+        return int(fallback)
+
+
+def blob_pixels(blob):
+    try:
+        return blob.pixels()
+    except Exception:
+        return blob.area()
+
+
+def blob_density_x100(blob):
+    try:
+        return int(blob.density() * 100)
+    except Exception:
+        area = blob.area()
+        if area <= 0:
+            return 0
+        return int(blob_pixels(blob) * 100 / area)
+
+
+def packet_for_ball(x_px):
+    offset_mm = int((x_px - CENTER_X) * MM_PER_PIXEL)
+    return "$B,%d#" % offset_mm
+
+
+def packet_lost():
+    return "$L#"
+
+
+def auto_tune_and_lock(camera):
+    camera.set_auto_gain(True)
+    camera.set_auto_exposure(True)
+    camera.skip_frames(time=AUTO_TUNE_MS)
+
+    gain_db = clamp(int(camera.get_gain_db()), GAIN_DB_MIN, GAIN_DB_MAX)
+    exposure_us = clamp(int(camera.get_exposure_us()),
+                        EXPOSURE_US_MIN,
+                        EXPOSURE_US_MAX)
+
+    camera.set_auto_gain(False, gain_db=gain_db)
+    camera.set_auto_exposure(False, exposure_us=exposure_us)
+    camera.skip_frames(time=LOCK_SETTLE_MS)
+    return gain_db, exposure_us
+
+
+def format_status(fps, ball_x, ball_y, offset_mm, pipe_roi, threshold):
+    if ball_x is None:
+        return "FPS=%.1f BALL=LOST PIPE=%s TH=%d" % (
+            fps, str(pipe_roi), threshold)
+    return "FPS=%.1f BALL=(%d,%d) MM=%d PIPE=%s TH=%d" % (
+        fps, ball_x, ball_y, offset_mm, str(pipe_roi), threshold)
+
+
+def pipe_display_roi(pipe_roi):
+    x, y, w, h = pipe_roi
+    top_trim = h // 3
+    return clip_roi(x + PIPE_USABLE_MARGIN_X,
+                    y + top_trim,
+                    w - PIPE_USABLE_MARGIN_X * 2,
+                    h - top_trim - PIPE_DRAW_BOTTOM_TRIM)
+
+
+# ---------------- Vision pipeline ----------------
+
+def find_pipe_roi(img, old_roi):
+    row_score = [0] * IMG_H
+    best_y = 0
+    best_score = -1
+
+    for y in range(0, IMG_H):
+        s = 0
+        for x in range(0, IMG_W, PIPE_SCAN_X_STEP):
+            s += img.get_pixel(x, y)
+        row_score[y] = s
+        if s > best_score:
+            best_score = s
+            best_y = y
+
+    if best_score <= 0:
+        if old_roi:
+            return old_roi
+        return (0, 40, IMG_W, 40)
+
+    threshold = int(best_score * PIPE_BRIGHT_RATIO)
+    groups = []
+    start = -1
+
+    for y in range(0, IMG_H):
+        if row_score[y] >= threshold:
+            if start < 0:
+                start = y
+        elif start >= 0:
+            groups.append((start, y - 1))
+            start = -1
+    if start >= 0:
+        groups.append((start, IMG_H - 1))
+
+    best_group = None
+    best_group_score = -1
+    for g in groups:
+        h = g[1] - g[0] + 1
+        if h < 2 or h > PIPE_MAX_H + PIPE_MARGIN_Y * 2:
+            continue
+        score = h * 1000
+        if old_roi:
+            old_cy = old_roi[1] + old_roi[3] // 2
+            cy = (g[0] + g[1]) // 2
+            score -= abs(cy - old_cy) * 20
+        if score > best_group_score:
+            best_group_score = score
+            best_group = g
+
+    if best_group is None:
+        y1 = best_y
+        y2 = best_y
+        while y1 > 0 and row_score[y1 - 1] >= threshold:
+            y1 -= 1
+        while y2 < IMG_H - 1 and row_score[y2 + 1] >= threshold:
+            y2 += 1
+    else:
+        y1 = best_group[0]
+        y2 = best_group[1]
+
+    h = y2 - y1 + 1
+    if h < PIPE_MIN_H:
+        mid = (y1 + y2) // 2
+        y1 = mid - PIPE_MIN_H // 2
+        y2 = y1 + PIPE_MIN_H - 1
+
+    y1 -= PIPE_MARGIN_Y
+    y2 += PIPE_MARGIN_Y
+    new_roi = clip_roi(0, y1, IMG_W, y2 - y1 + 1)
+
+    if old_roi:
+        y = (old_roi[1] * 3 + new_roi[1]) // 4
+        h = (old_roi[3] * 3 + new_roi[3]) // 4
+        return clip_roi(0, y, IMG_W, h)
+
+    return new_roi
+
+
+def make_search_roi(pipe_roi, smooth_x, lost_frames):
+    x, y, w, h = pipe_roi
+    usable_left = x + PIPE_USABLE_MARGIN_X
+    usable_right = x + w - PIPE_USABLE_MARGIN_X
+    inner_margin_top = 3
+    if h > 16:
+        inner_margin_top = h // 4
+        if inner_margin_top > 8:
+            inner_margin_top = 8
+
+    inner_y = y + inner_margin_top
+    inner_h = h - inner_margin_top - PIPE_SEARCH_BOTTOM_MARGIN
+    if inner_h < 5:
+        inner_y = y
+        inner_h = h
+
+    if smooth_x >= 0 and lost_frames <= TRACK_USE_LOST_FRAMES:
+        half_w = TRACK_HALF_W + lost_frames * TRACK_HALF_W_LOST_STEP
+        track_left = smooth_x - half_w
+        track_right = smooth_x + half_w
+        if track_left < usable_left:
+            track_left = usable_left
+        if track_right > usable_right:
+            track_right = usable_right
+        return clip_roi(track_left,
+                        inner_y,
+                        track_right - track_left,
+                        inner_h)
+
+    return clip_roi(usable_left,
+                    inner_y,
+                    usable_right - usable_left,
+                    inner_h)
+
+
+def make_tile_rois(search_roi):
+    x, y, w, h = search_roi
+    tiles = []
+    right_limit = x + w
+
+    for i in range(PIPE_TILE_COUNT):
+        core_left = x + (w * i) // PIPE_TILE_COUNT
+        core_right = x + (w * (i + 1)) // PIPE_TILE_COUNT
+        tile_left = core_left - PIPE_TILE_OVERLAP
+        tile_right = core_right + PIPE_TILE_OVERLAP
+        if tile_left < x:
+            tile_left = x
+        if tile_right > right_limit:
+            tile_right = right_limit
+        tiles.append((tile_left, y, tile_right - tile_left, h))
+
+    return tiles
+
+
+def dark_threshold(img, roi):
+    hist = img.get_histogram(roi=roi)
+    p08 = percentile_value(hist, 0.08, 70)
+    p50 = percentile_value(hist, 0.50, 120)
+    hi = p08 + 18
+
+    if hi > p50 - DARK_MARGIN:
+        hi = p50 - DARK_MARGIN
+    hi = clamp(hi, 15, DARK_MAX)
+    return int(hi)
+
+
+def score_blob(blob, search_roi, smooth_x):
+    bw = blob.w()
+    bh = blob.h()
+    if bw < BALL_MIN_WH or bh < BALL_MIN_WH:
+        return -1
+    if bw > BALL_MAX_WH or bh > BALL_MAX_WH:
+        return -1
+
+    pixels = blob_pixels(blob)
+    if pixels < BALL_MIN_PIXELS or pixels > BALL_MAX_PIXELS:
+        return -1
+
+    small = bw if bw < bh else bh
+    large = bh if bw < bh else bw
+    if small <= 0:
+        return -1
+    aspect_x100 = int(large * 100 / small)
+    if aspect_x100 > BALL_MAX_ASPECT_X100:
+        return -1
+
+    density_x100 = blob_density_x100(blob)
+    if density_x100 < BALL_MIN_DENSITY_X100:
+        return -1
+
+    # Reject pipe borders and ROI clipping artifacts.
+    if blob.y() <= search_roi[1] + 1:
+        return -1
+    if blob.y() + blob.h() >= search_roi[1] + search_roi[3] - 1:
+        return -1
+
+    score = pixels * 10 + density_x100 * 2 - abs(bw - bh) * 8
+    if smooth_x >= 0:
+        score -= abs(blob.cx() - smooth_x) * 2
+    return score
+
+
+def best_blob_in_roi(img, blob_roi, score_roi, smooth_x, merge_blobs):
+    th = dark_threshold(img, blob_roi)
+    margin = 2 if merge_blobs else 0
+    blobs = img.find_blobs([(0, th)],
+                           roi=blob_roi,
+                           pixels_threshold=BALL_MIN_PIXELS,
+                           area_threshold=BALL_MIN_PIXELS,
+                           merge=merge_blobs,
+                           margin=margin)
+
+    best = None
+    best_score = -1
+    for b in blobs:
+        s = score_blob(b, score_roi, smooth_x)
+        if s > best_score:
+            best_score = s
+            best = b
+
+    return best, best_score, th
+
+
+def find_ball(img, pipe_roi, smooth_x, lost_frames):
+    search_roi = make_search_roi(pipe_roi, smooth_x, lost_frames)
+    best, best_score, th = best_blob_in_roi(img,
+                                            search_roi,
+                                            search_roi,
+                                            smooth_x,
+                                            True)
+
+    if best is None:
+        full_roi = make_search_roi(pipe_roi, -1, TRACK_USE_LOST_FRAMES + 1)
+        for tile_roi in make_tile_rois(full_roi):
+            candidate, candidate_score, tile_th = best_blob_in_roi(
+                img, tile_roi, full_roi, smooth_x, False)
+            if candidate_score > best_score:
+                best = candidate
+                best_score = candidate_score
+                th = tile_th
+
+    return best, search_roi, th
+
+
+def draw_debug(img, pipe_roi, search_roi, ball, fps):
+    img.draw_rectangle(pipe_display_roi(pipe_roi), color=128)
+    img.draw_line((CENTER_X, pipe_roi[1], CENTER_X, pipe_roi[1] + pipe_roi[3]), color=160)
+    if ball:
+        img.draw_rectangle(ball.rect(), color=255, thickness=2)
+        r = (ball.w() + ball.h()) // 4
+        img.draw_circle(ball.cx(), ball.cy(), r, color=255, thickness=2)
+        img.draw_cross(ball.cx(), ball.cy(), color=255, size=8)
+    img.draw_string(2, 2, "FPS:%d" % int(fps), color=255)
+
+
+# ---------------- Runtime ----------------
 
 sensor.reset()
 sensor.set_pixformat(sensor.GRAYSCALE)
-sensor.set_framesize(sensor.QQVGA)    # 160x120 高速
-sensor.set_auto_gain(True, gain_db=20)
+sensor.set_framesize(sensor.QQVGA)
 sensor.set_auto_whitebal(False)
-sensor.set_auto_exposure(True, exposure_us=25000)
-sensor.skip_frames(time=2000)
+locked_gain_db, locked_exposure_us = auto_tune_and_lock(sensor)
+print("CAM GAIN=%ddB EXPOSURE=%dus" % (locked_gain_db, locked_exposure_us))
 
-<<<<<<< HEAD
-uart = UART(3, 9600, timeout_char=10)   # 9600匹配STM32软件串口
+uart = UART(UART_ID, UART_BAUD, timeout_char=10)
 clock = time.clock()
-=======
-# OpenMV UART(3): P4=TX, P5=RX. It sends $B,<0.1mm position># at 9600 baud.
-uart = UART(3, 9600, timeout_char=10)
 
-CENTER_X = 160
-SCALE_MM = 0.38
-ROI_X = 20
-ROI_Y = 80
-ROI_W = 280
-ROI_H = 80
->>>>>>> f28ac21ac21a47545d52c91435280a81e7018f15
-
-CENTER_X = 80; SCALE_MM = 0.76  # 需实测标定!
-last_uart_ms = 0
-
-tube_roi = (0, 30, 160, 60)
-y1_sum = 0; y2_sum = 0; sample_cnt = 0
+pipe_roi = (0, 40, IMG_W, 40)
+smooth_x = -1
+lost_frames = PIPE_LOST_RELOCK
 frame_n = 0
-locked = False
-
-save_count = 0  # 保存前5帧
+last_uart_ms = 0
+last_status_ms = 0
 
 while True:
     clock.tick()
     frame_n += 1
     img = sensor.snapshot()
 
-    # 保存前5帧原图
-    if save_count < 5:
-        try:
-            img.save("capture_%d.bmp" % save_count)
-            print("SAVED capture_%d.bmp OK" % save_count)
-        except Exception as e:
-            print("SAVE ERR: %s" % str(e))
-        save_count += 1
+    need_pipe_lock = False
+    if frame_n <= 5:
+        need_pipe_lock = True
+    elif frame_n % PIPE_RELOCK_FRAMES == 0:
+        need_pipe_lock = True
+    elif lost_frames >= PIPE_LOST_RELOCK:
+        need_pipe_lock = True
 
-    # ── 管壁重锁: 管壁=图里最亮的横条 ──
-    if not locked or frame_n % RELOCK_EVERY == 0:
-        if frame_n % RELOCK_EVERY == 0:
-            y1_sum = 0; y2_sum = 0; sample_cnt = 0
-        # 管壁=横跨画面亮条: 统计每行亮像素(>180)数
-        row_bright = [0]*120
-        for y in range(120):
-            cnt = 0
-            for x in range(160):
-                if img.get_pixel(x, y) > 180:
-                    cnt += 1
-            row_bright[y] = cnt
-        # 只取横跨>80%画面的行(>128像素)
-        candidates = [y for y in range(120) if row_bright[y] > 128]
-        if len(candidates) < 2:
-            candidates = sorted(range(120), key=lambda y: row_bright[y], reverse=True)[:8]
-        # 按位置分组
-        candidates.sort()
-        groups = []
-        cur = [candidates[0]]
-        for i in range(1, len(candidates)):
-            if candidates[i] - cur[-1] < 6:
-                cur.append(candidates[i])
-            else:
-                groups.append(sum(cur)//len(cur))
-                cur = [candidates[i]]
-        groups.append(sum(cur)//len(cur))
+    if need_pipe_lock:
+        pipe_roi = find_pipe_roi(img, pipe_roi)
 
-        if len(groups) >= 2:
-            groups.sort()
-            y1 = groups[0]; y2 = groups[-1]
-            if y2 - y1 > 10:
-                tube_roi = (0, y1-2, 160, y2 - y1 + 4)
-                y1_sum += y1; y2_sum += y2; sample_cnt += 1
-        if sample_cnt >= LEARN_FRAMES:
-            y1a = y1_sum//sample_cnt; y2a = y2_sum//sample_cnt
-            tube_roi = (0, y1a-2, 160, y2a - y1a + 4)
-            locked = True
-
-    # ── 球检测: ROI内缩避管壁 + 多膨胀让球变圆 + blob找最圆 ──
-    r = tube_roi
-    # 内缩3像素避开管壁边缘
-    rx, ry, rw, rh = r[0]+3, r[1]+3, r[2]-6, r[3]-6
-    if rh < 10: rx, ry, rw, rh = r[0], r[1], r[2], r[3]
-    roi = img.copy(roi=(rx, ry, rw, rh))
-    roi.binary([BALL_BINARY])
-    roi.dilate(4)   # 多膨胀填成圆形
-    roi.erode(2)
-
-<<<<<<< HEAD
-    # 先用blob找最圆的, 限制在画面中心附近(排除左边胶带)
-    blobs = roi.find_blobs([(200, 255)], pixels_threshold=6, merge=True)
-    ball_found = False; ball_cx = 0
-=======
-    # ── 腐蚀去噪 ──
-    roi.erode(1)
-
-    # ── 找球 ──
-    blobs = roi.find_blobs([(128, 255)], pixels_threshold=15, area_threshold=15,
-                            merge=True, margin=5)
-
-    # ── 调试显示 ──
-    if DEBUG_STEP == 0:
-        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
-        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
-    elif DEBUG_STEP == 1:
-        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
-        d.histeq()
-        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
-    elif DEBUG_STEP == 2:
-        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
-        d.histeq()
-        d.find_edges(image.EDGE_CANNY, threshold=(30, 80))
-        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
-    elif DEBUG_STEP == 3:
-        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
-        d.histeq()
-        d.find_edges(image.EDGE_CANNY, threshold=(30, 80))
-        d.dilate(2)
-        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
-    elif DEBUG_STEP == 4:
-        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
-        d.histeq()
-        d.find_edges(image.EDGE_CANNY, threshold=(30, 80))
-        d.dilate(2)
-        d.erode(1)
-        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
-    elif DEBUG_STEP == 5:
-        img.draw_line((CENTER_X, ROI_Y, CENTER_X, ROI_Y + ROI_H), color=128)
-        if blobs:
-            best = blobs[0]
-            best_score = 0
-            for b in blobs:
-                if b.area() > 0:
-                    r = 1.0 - abs(b.elongation() - 1.0)
-                    if r < 0: r = 0
-                    s = b.area() * r
-                    if s > best_score:
-                        best_score = s
-                        best = b
-            cx = best.cx() + ROI_X
-            cy = best.cy() + ROI_Y
-            img.draw_cross(cx, cy, color=255, size=10)
-
-    img.draw_string(5, 5, labels[DEBUG_STEP], color=255, scale=1.5)
-
-    # ── UART output: $B,<signed position in 0.1mm># ──
-    position_0p1mm = 0
-    valid = 0
->>>>>>> f28ac21ac21a47545d52c91435280a81e7018f15
-    if blobs:
-        best = None; best_score = 0
-        for b in blobs:
-<<<<<<< HEAD
-            # 球在画面内(仅排除左右边缘10px)
-            if b.cx() < 10 or b.cx() > 150: continue
-            rnd = 1.0 - abs(b.elongation() - 1.0)
-            if rnd < 0: rnd = 0
-            score = b.area() * rnd
-            if score > best_score: best_score = score; best = b
-        if best and best.elongation() < 2.0:
-            ball_cx = best.cx() + rx
-            ball_found = True
-
-    # ── 右下角调试: 显示处理后的ROI ──
-    img.draw_image(roi, 100, 90, x_scale=0.35, y_scale=0.35)
-    img.draw_rectangle(r, color=128)
-    img.draw_line((CENTER_X, r[1], CENTER_X, r[1]+r[3]), color=128)
-
+    ball, search_roi, th = find_ball(img, pipe_roi, smooth_x, lost_frames)
     now = time.ticks_ms()
-    if ball_found:
-        cy = best.cy() + ry
-        r2 = int(best.w() / 2)
-        img.draw_circle(ball_cx, cy, r2, color=255, thickness=2)
-        img.draw_cross(ball_cx, cy, color=255, size=8)
-        if time.ticks_diff(now, last_uart_ms) > 50:
-            # 发送0.1mm单位 (STM32内部使用)
-            ball_01mm = int((ball_cx - CENTER_X) * SCALE_MM * 10)
-            uart.write("$B,%d#" % ball_01mm)
+    offset_mm = None
+
+    if ball:
+        x = ball.cx()
+        if smooth_x < 0:
+            smooth_x = x
+        else:
+            smooth_x = int((smooth_x * SMOOTH_OLD + x * SMOOTH_NEW) / (SMOOTH_OLD + SMOOTH_NEW))
+        lost_frames = 0
+        offset_mm = int((smooth_x - CENTER_X) * MM_PER_PIXEL)
+
+        if time.ticks_diff(now, last_uart_ms) >= UART_FOUND_PERIOD_MS:
+            uart.write(packet_for_ball(smooth_x))
             last_uart_ms = now
-    elif time.ticks_diff(now, last_uart_ms) > 100:
-        uart.write("$L#")   # 没找到也发信号
-        last_uart_ms = now
+    else:
+        if lost_frames < 255:
+            lost_frames += 1
+        if lost_frames > TRACK_USE_LOST_FRAMES:
+            smooth_x = -1
 
-    print("FPS: %.1f" % clock.fps())
-=======
-            if b.area() > 0:
-                r = 1.0 - abs(b.elongation() - 1.0)
-                if r < 0: r = 0
-                s = b.area() * r
-                if s > best_score:
-                    best_score = s
-                    best = b
-        ball_cx = best.cx() + ROI_X
-        position_0p1mm = int((ball_cx - CENTER_X) * SCALE_MM * 10)
-        position_0p1mm = max(-32768, min(32767, position_0p1mm))
-        valid = 1
+        if time.ticks_diff(now, last_uart_ms) >= UART_LOST_PERIOD_MS:
+            uart.write(packet_lost())
+            last_uart_ms = now
 
-    # UART frame: $B,<signed position in 0.1mm>#. Send only confirmed balls;
-    # no frame for 120 ms makes the STM32 enter its camera-lost safety state.
-    now = time.ticks_ms()
-    if valid and time.ticks_diff(now, last_uart_ms) >= 40:
-        uart.write("$B,%d#" % position_0p1mm)
-        last_uart_ms = now
->>>>>>> f28ac21ac21a47545d52c91435280a81e7018f15
+    if DEBUG_DRAW:
+        draw_debug(img, pipe_roi, search_roi, ball, clock.fps())
+
+    if PRINT_STATUS and time.ticks_diff(now, last_status_ms) >= STATUS_PERIOD_MS:
+        if ball:
+            print(format_status(clock.fps(),
+                                ball.cx(),
+                                ball.cy(),
+                                offset_mm,
+                                pipe_roi,
+                                th))
+        else:
+            print(format_status(clock.fps(), None, None, None, pipe_roi, th))
+        last_status_ms = now

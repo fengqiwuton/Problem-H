@@ -66,15 +66,14 @@ def detect_ball(img_path):
     best = None; best_score = 0
     for cnt in contours:
         area = cv2.contourArea(cnt)
-        if area < 8 or area > 400: continue
+        if area < 6 or area > 500: continue
         peri = cv2.arcLength(cnt, True)
-        if peri < 3: continue
+        if peri < 2: continue
         circ = 4*np.pi*area/(peri*peri)
         (cx, cy), r = cv2.minEnclosingCircle(cnt)
-        # 球在管中心区域(排除管壁黑边)
         if cx < tw*0.1 or cx > tw*0.9: continue
-        if r > th*0.6: continue  # 半径不能超过管高60%
-        if circ > 0.5 and area*circ > best_score:
+        if r < 2 or r > th*0.6: continue
+        if area > best_score:  # 找最大暗色块=球
             best_score = area*circ
             best = (int(cx), int(cy)+ty, int(r))
 
@@ -109,7 +108,7 @@ def detect_ball(img_path):
     with open(out, 'wb') as f: f.write(buf)
 
 # ── 主程序 ──
-files = [f for f in os.listdir(INPUT_DIR) if f.endswith(('.bmp','.jpg')) and f.startswith('capture')]
+files = [f for f in os.listdir(INPUT_DIR) if f in ['capture_%d.bmp'%i for i in range(5)]]
 print(f"Found {len(files)} images")
 for f in sorted(files): detect_ball(os.path.join(INPUT_DIR, f))
 print("Done!")
