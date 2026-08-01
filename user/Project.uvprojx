@@ -16,7 +16,7 @@
         <TargetCommonOption>
           <Device>STM32F103C8</Device>
           <Vendor>STMicroelectronics</Vendor>
-          <PackID>Keil.STM32F1xx_DFP.2.2.0</PackID>
+          <PackID>Keil.STM32F1xx_DFP.2.4.0</PackID>
           <PackURL>http://www.keil.com/pack/</PackURL>
           <Cpu>IRAM(0x20000000,0x5000) IROM(0x08000000,0x10000) CPUTYPE("Cortex-M3") CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
@@ -338,7 +338,7 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define></Define>
+              <Define>STM32F10X_MD</Define>
               <Undefine></Undefine>
               <IncludePath>..\user;..\ml_libs;..\code;..\sys</IncludePath>
             </VariousControls>
@@ -538,6 +538,56 @@
               <FileName>scs_servo.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\code\scs_servo.h</FilePath>
+            </File>
+            <File>
+              <FileName>openmv_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\openmv_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>openmv_uart.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\openmv_uart.h</FilePath>
+            </File>
+            <File>
+              <FileName>balance_calibration.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\balance_calibration.c</FilePath>
+            </File>
+            <File>
+              <FileName>balance_calibration.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\balance_calibration.h</FilePath>
+            </File>
+            <File>
+              <FileName>task3_openloop.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\task3_openloop.c</FilePath>
+            </File>
+            <File>
+              <FileName>task3_openloop.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\task3_openloop.h</FilePath>
+            </File>
+            <File>
+              <FileName>task3_asym_move.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\task3_asym_move.c</FilePath>
+            </File>
+            <File>
+              <FileName>task3_asym_move.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\task3_asym_move.h</FilePath>
+            </File>
+            <File>
+              <FileName>task3_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\task3_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>task3_control.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\task3_control.h</FilePath>
             </File>
           </Files>
         </Group>

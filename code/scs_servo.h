@@ -13,6 +13,9 @@ void scs_init(uint8_t servo_id);
 void scs_write_pos(uint8_t id, uint16_t pos, uint16_t time, uint16_t speed);
 void scs_torque_enable(uint8_t id, uint8_t enable);
 
+/* Read the SCS encoder position; returns 1 only for a valid reply. */
+uint8_t scs_read_present_pos(uint8_t id, uint16_t *position);
+
 /* 工作范围 */
 #define SCS_POS_MIN      453
 #define SCS_POS_MAX      760

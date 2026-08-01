@@ -32,21 +32,10 @@ def find_pipe(gray):
         candidates = np.argsort(row_mean)[-20:]
     candidates = np.sort(candidates)
 
-    # 分组相邻行
-    groups = []
-    cur = [candidates[0]]
-    for i in range(1, len(candidates)):
-        if candidates[i] - cur[-1] < 5:
-            cur.append(candidates[i])
-        else:
-            groups.append(int(np.mean(cur)))
-            cur = [candidates[i]]
-    groups.append(int(np.mean(cur)))
-    groups.sort()
-
-    if len(groups) >= 2:
-        y1, y2 = groups[0], groups[-1]
-        return max(y1-5, 0), min(y2+5, h)
+    if len(candidates) > 6:
+        y1 = candidates[0]
+        y2 = candidates[-1]
+        return max(y1-3, 0), min(y2+3, h)
     return h//4, 3*h//4
 
 def detect_ball(img_path):

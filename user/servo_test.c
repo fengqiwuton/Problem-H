@@ -1,30 +1,37 @@
 #include "app_board.h"
 #include "app_module_test.h"
+#include "scs_servo.h"
 
 void servo_test_run(void)
 {
-    app_servo_t servo;
     uint8_t index = 0;
-    const uint8_t angles[] = {0, 90, 180};
+    const uint16_t positions[] =
+    {
+        BOARD_SCS_SERVO_MIN,
+        BOARD_SCS_SERVO_CENTER,
+        BOARD_SCS_SERVO_MAX
+    };
 
     OLED_Init();
     OLED_Clear();
-    app_servo_init(&servo, BOARD_SERVO_TIM, BOARD_SERVO_CH);
+    scs_init(BOARD_SCS_SERVO_ID);
+    scs_torque_enable(BOARD_SCS_SERVO_ID, 1);
+    delay_ms(20);
 
     while (1)
     {
-        app_servo_set_angle(&servo, (float)angles[index]);
-        OLED_ShowString(1, 1, "SERVO TEST");
-        OLED_ShowString(2, 1, "ANG:");
-        OLED_ShowNum(2, 5, angles[index], 3);
-        OLED_ShowString(3, 1, "PWM 50HZ");
+        scs_write_pos(BOARD_SCS_SERVO_ID, positions[index], 0, 300);
+        OLED_ShowString(1, 1, "SCS SERVO TEST");
+        OLED_ShowString(2, 1, "Pos:");
+        OLED_ShowNum(2, 5, positions[index], 4);
+        OLED_ShowString(3, 1, "PB10 UART3 1M");
 
         index++;
-        if (index >= sizeof(angles))
+        if (index >= (sizeof(positions) / sizeof(positions[0])))
         {
             index = 0;
         }
-        delay_ms(800);
+        delay_ms(1000);
     }
 }
 

@@ -14,8 +14,20 @@ sensor.set_auto_whitebal(False)
 sensor.set_auto_exposure(True, exposure_us=25000)
 sensor.skip_frames(time=2000)
 
+<<<<<<< HEAD
 uart = UART(3, 9600, timeout_char=10)   # 9600匹配STM32软件串口
 clock = time.clock()
+=======
+# OpenMV UART(3): P4=TX, P5=RX. It sends $B,<0.1mm position># at 9600 baud.
+uart = UART(3, 9600, timeout_char=10)
+
+CENTER_X = 160
+SCALE_MM = 0.38
+ROI_X = 20
+ROI_Y = 80
+ROI_W = 280
+ROI_H = 80
+>>>>>>> f28ac21ac21a47545d52c91435280a81e7018f15
 
 CENTER_X = 80; SCALE_MM = 0.76  # 需实测标定!
 last_uart_ms = 0
@@ -90,12 +102,71 @@ while True:
     roi.dilate(4)   # 多膨胀填成圆形
     roi.erode(2)
 
+<<<<<<< HEAD
     # 先用blob找最圆的, 限制在画面中心附近(排除左边胶带)
     blobs = roi.find_blobs([(200, 255)], pixels_threshold=6, merge=True)
     ball_found = False; ball_cx = 0
+=======
+    # ── 腐蚀去噪 ──
+    roi.erode(1)
+
+    # ── 找球 ──
+    blobs = roi.find_blobs([(128, 255)], pixels_threshold=15, area_threshold=15,
+                            merge=True, margin=5)
+
+    # ── 调试显示 ──
+    if DEBUG_STEP == 0:
+        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
+        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
+    elif DEBUG_STEP == 1:
+        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
+        d.histeq()
+        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
+    elif DEBUG_STEP == 2:
+        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
+        d.histeq()
+        d.find_edges(image.EDGE_CANNY, threshold=(30, 80))
+        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
+    elif DEBUG_STEP == 3:
+        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
+        d.histeq()
+        d.find_edges(image.EDGE_CANNY, threshold=(30, 80))
+        d.dilate(2)
+        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
+    elif DEBUG_STEP == 4:
+        d = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
+        d.histeq()
+        d.find_edges(image.EDGE_CANNY, threshold=(30, 80))
+        d.dilate(2)
+        d.erode(1)
+        img.draw_image(d, 0, 0, x_scale=1.15, y_scale=3)
+    elif DEBUG_STEP == 5:
+        img.draw_line((CENTER_X, ROI_Y, CENTER_X, ROI_Y + ROI_H), color=128)
+        if blobs:
+            best = blobs[0]
+            best_score = 0
+            for b in blobs:
+                if b.area() > 0:
+                    r = 1.0 - abs(b.elongation() - 1.0)
+                    if r < 0: r = 0
+                    s = b.area() * r
+                    if s > best_score:
+                        best_score = s
+                        best = b
+            cx = best.cx() + ROI_X
+            cy = best.cy() + ROI_Y
+            img.draw_cross(cx, cy, color=255, size=10)
+
+    img.draw_string(5, 5, labels[DEBUG_STEP], color=255, scale=1.5)
+
+    # ── UART output: $B,<signed position in 0.1mm># ──
+    position_0p1mm = 0
+    valid = 0
+>>>>>>> f28ac21ac21a47545d52c91435280a81e7018f15
     if blobs:
         best = None; best_score = 0
         for b in blobs:
+<<<<<<< HEAD
             # 球在画面内(仅排除左右边缘10px)
             if b.cx() < 10 or b.cx() > 150: continue
             rnd = 1.0 - abs(b.elongation() - 1.0)
@@ -127,3 +198,23 @@ while True:
         last_uart_ms = now
 
     print("FPS: %.1f" % clock.fps())
+=======
+            if b.area() > 0:
+                r = 1.0 - abs(b.elongation() - 1.0)
+                if r < 0: r = 0
+                s = b.area() * r
+                if s > best_score:
+                    best_score = s
+                    best = b
+        ball_cx = best.cx() + ROI_X
+        position_0p1mm = int((ball_cx - CENTER_X) * SCALE_MM * 10)
+        position_0p1mm = max(-32768, min(32767, position_0p1mm))
+        valid = 1
+
+    # UART frame: $B,<signed position in 0.1mm>#. Send only confirmed balls;
+    # no frame for 120 ms makes the STM32 enter its camera-lost safety state.
+    now = time.ticks_ms()
+    if valid and time.ticks_diff(now, last_uart_ms) >= 40:
+        uart.write("$B,%d#" % position_0p1mm)
+        last_uart_ms = now
+>>>>>>> f28ac21ac21a47545d52c91435280a81e7018f15
