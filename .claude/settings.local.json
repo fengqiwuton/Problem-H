@@ -4,7 +4,8 @@
       "Bash(python3 -c ':*)",
       "Bash(python3)",
       "Read(//e/STM32Project/stm32-master/stm32-master/**)",
-      "Read(//e/STM32Project/**)"
+      "Read(//e/STM32Project/**)",
+      "Bash(python3 -c \"import os; files=[f for f in os.listdir\\('.'\\) if f.endswith\\(\\('.bmp','.jpg'\\)\\)]; print\\('\\\\n'.join\\(sorted\\(files\\)\\)\\)\")"
     ]
   }
 }
