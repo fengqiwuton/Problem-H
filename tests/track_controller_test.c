@@ -330,6 +330,17 @@ static void test_finish_marker_requires_wide_span(void)
     CHECK(out.finish_detected == 0);
 }
 
+static void test_finish_marker_requires_four_active_sensors(void)
+{
+    Track_Controller_t c;
+    Track_Controller_Output_t out;
+
+    track_controller_init(&c);
+    (void)track_controller_step(&c, 0xC1, 10);
+    out = track_controller_step(&c, 0xC1, 10);
+    CHECK(out.finish_detected == 0);
+}
+
 static void test_finish_marker_requires_two_wide_frames(void)
 {
     Track_Controller_t c;
@@ -421,6 +432,7 @@ int main(void)
     test_finish_marker_rejects_adjacent_curve_bits();
     test_finish_marker_requires_both_sensor_halves();
     test_finish_marker_requires_wide_span();
+    test_finish_marker_requires_four_active_sensors();
     test_finish_marker_requires_two_wide_frames();
     test_finish_candidate_holds_previous_output();
     test_finish_marker_requires_consecutive_wide_frames();
